@@ -35,8 +35,9 @@ window.createLobby = async function () {
   await set(ref(db, `lobbies/${lobbyId}`), {
     hostId: localPlayerId,
     players,
-    seats
+    seats: JSON.parse(JSON.stringify(seats))  // ensures nulls are preserved
   });
+  
 
   enterLobbyUI();
   listenToLobby();
