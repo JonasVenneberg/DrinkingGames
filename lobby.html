@@ -1,30 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Test Lobby</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lobby</title>
   <style>
-    body { background: #111; color: white; font-family: sans-serif; text-align: center; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #111;
+      color: white;
+      padding: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      font-size: 1em;
+      border-radius: 6px;
+      border: none;
+    }
+    #table {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 20px;
+      background: #222;
+      padding: 10px;
+      border-radius: 12px;
+    }
     .seat {
-      display: inline-block;
       width: 100px;
       height: 50px;
       background: #333;
       margin: 5px;
-      line-height: 50px;
       border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
     }
-    .taken { background: #555; }
-    .self { background: #ffb700; }
+    .seat.taken {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .seat.self {
+      background: #ffb700;
+    }
+    .player-pool {
+      margin-top: 30px;
+    }
+    .player {
+      background: #444;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin: 4px;
+      display: inline-block;
+    }
   </style>
 </head>
 <body>
-  <h1>Minimal Firebase Seat Test</h1>
-  <button onclick="createLobby()">Create Lobby</button>
-  <div id="table"></div>
+  <h1>Multiplayer Lobby</h1>
 
-  <script type="module" src="./lobby.js"></script>
+  <div id="createJoin">
+    <button onclick="createLobby()">Create Lobby</button>
+    <br><br>
+    <input type="text" id="lobbyCodeInput" placeholder="Enter Lobby Code" />
+    <input type="text" id="nicknameInput" placeholder="Your Name" />
+    <button onclick="joinLobby()">Join Lobby</button>
+  </div>
+
+  <div id="lobbyView" style="display: none;">
+    <h2>Lobby Code: <span id="lobbyCodeDisplay"></span></h2>
+
+    <div id="hostControls" style="margin: 10px;"></div>
+
+    <div id="table"></div>
+
+    <div class="player-pool">
+      <h3>Unseated Players:</h3>
+      <div id="unseatedPlayers"></div>
+    </div>
+
+    <button id="startGameButton" style="margin-top: 20px; display:none;">Start Game</button>
+  </div>
+
+  <script type="module" src="lobby.js"></script>
 </body>
 </html>
