@@ -3,12 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Simple Web Page</title>
+  <title>My Web App</title>
+
+  <!-- App Look & Feel -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#ffffff" />
+
+  <!-- iPhone fullscreen support -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
   <style>
     body {
       font-family: sans-serif;
       padding: 20px;
       text-align: center;
+      background: #f0f0f0;
     }
     button {
       font-size: 1.2em;
@@ -17,8 +28,17 @@
   </style>
 </head>
 <body>
-  <h1>Hello from my phone-friendly web page!</h1>
-  <p>This page works on iPhones, Android, or desktop.</p>
-  <button onclick="alert('You clicked the button!')">Click me</button>
+  <h1>Hello from your offline-ready web app!</h1>
+  <p>This works fullscreen and even offline!</p>
+  <button onclick="alert('It works!')">Click me</button>
+
+  <script>
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(reg => console.log('Service Worker registered!', reg))
+        .catch(err => console.log('Service Worker registration failed:', err));
+    }
+  </script>
 </body>
 </html>
