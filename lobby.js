@@ -30,7 +30,7 @@ window.createLobby = async function () {
   players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: null };
 
   const seats = {};
-  for (let i = 1; i <= seatCount; i++) {
+  for (let i = 1; i <= 4; i++) {
     seats[i] = 0;  // Use 0 instead of null
   }
 
