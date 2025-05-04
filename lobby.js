@@ -34,9 +34,13 @@ window.createLobby = async function () {
 
   await set(ref(db, `lobbies/${lobbyId}`), {
     hostId: localPlayerId,
-    players,
-    seats: JSON.parse(JSON.stringify(seats))  // ensures nulls are preserved
+    players
   });
+  
+  // Write seats separately to force Firebase to preserve nulls
+  await update(ref(db, `lobbies/${lobbyId}/seats`), seats);
+  
+  
   
 
   enterLobbyUI();
