@@ -136,7 +136,7 @@ function listenToLobby() {
       const seat = document.createElement("div");
       seat.className = "seat";
 
-      if (playerId !== 0) {
+      if (playerId !== 0 && playerId !== "0") {
         const player = players[playerId];
         seat.textContent = player ? player.name : "Taken";
         seat.classList.add("taken");
