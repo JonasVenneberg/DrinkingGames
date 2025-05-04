@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Web App</title>
+  <title>Drinking Games</title>
 
-  <!-- App Look & Feel -->
+  <!-- Web App Manifest & Fullscreen Setup -->
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#ffffff" />
-
-  <!-- iPhone fullscreen support -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -17,23 +15,46 @@
   <style>
     body {
       font-family: sans-serif;
-      padding: 20px;
+      margin: 0;
+      padding: 30px 20px;
+      background: #f3f3f3;
       text-align: center;
-      background: #f0f0f0;
     }
-    button {
+
+    h1 {
+      margin-bottom: 30px;
+    }
+
+    .game-button {
+      display: block;
+      width: 100%;
+      max-width: 400px;
+      margin: 10px auto;
+      padding: 15px;
       font-size: 1.2em;
-      padding: 10px 20px;
+      background-color: #ff7b00;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .game-button:hover {
+      background-color: #e56d00;
     }
   </style>
 </head>
 <body>
-  <h1>Hello from your offline-ready web app!</h1>
-  <p>This works fullscreen and even offline!</p>
-  <button onclick="alert('It works!')">Click me</button>
+  <h1>Drinking Games</h1>
+
+  <button class="game-button" onclick="location.href='top100.html'">Top 100 Categories</button>
+  <button class="game-button" disabled>In Progress</button>
+  <button class="game-button" disabled>In Progress</button>
+  <button class="game-button" disabled>In Progress</button>
+  <button class="game-button" disabled>In Progress</button>
 
   <script>
-    // Register service worker for offline support
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js')
         .then(reg => console.log('Service Worker registered!', reg))

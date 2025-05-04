@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Top 100 Categories - Game</title>
+
+  <script src="categories.js"></script>
+
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f4f4f4;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #scoreboard {
+      position: sticky;
+      top: 0;
+      background: #fff;
+      padding: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    .score {
+      padding: 5px 12px;
+      background: #ff7b00;
+      color: white;
+      border-radius: 6px;
+    }
+
+    input, button {
+      font-size: 1em;
+      padding: 10px;
+      margin: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    #categoryList {
+      margin-top: 10px;
+    }
+
+    .guess-area {
+      margin-top: 20px;
+    }
+
+    #guessResult {
+      font-weight: bold;
+      margin-top: 10px;
+      min-height: 24px;
+    }
+
+    #continueButton {
+      display: none;
+      margin-top: 12px;
+    }
+
+    #navBar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #fff;
+      padding: 10px;
+      display: flex;
+      justify-content: space-around;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    #navBar button {
+      flex: 1;
+      margin: 0 4px;
+      font-size: 0.9em;
+    }
+
+    @media (hover: hover) {
+      button:hover {
+        background-color: #eee;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SETUP PHASE -->
+  <div id="setupSection">
+    <h1>Top 100 Categories</h1>
+    <input type="text" id="teamInput" placeholder="Enter team name" />
+    <button onclick="addTeam()">Add Team</button>
+    <div id="teamList"></div>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+
+  <!-- SCOREBOARD -->
+  <div id="scoreboard" class="hidden"></div>
+
+  <!-- CATEGORY PHASE -->
+  <div id="categorySection" class="hidden">
+    <h2>Select a Category</h2>
+    <button onclick="selectRandomCategory()">Random Category</button>
+    <button onclick="showCategoryList()">Select Category</button>
+    <div id="categoryList" class="hidden"></div>
+  </div>
+
+  <!-- GUESSING PHASE -->
+  <div id="guessSection" class="hidden">
+    <h2 id="currentCategoryTitle"></h2>
+    <p id="turnInfo"></p>
+    <input type="text" id="guessInput" placeholder="Enter your guess..." />
+    <button onclick="submitGuess()">Submit Guess</button>
+    <div id="guessResult"></div>
+    <button id="continueButton" onclick="endRound()">Continue</button>
+  </div>
+
+  <!-- NAVIGATION BAR -->
+  <div id="navBar" class="hidden">
+    <button onclick="restartGame()">🔄 Restart</button>
+    <button onclick="returnToSetup()">🏠 Setup</button>
+    <button onclick="document.getElementById('scoreboard').scrollIntoView()">📊 Scores</button>
+  </div>
+
+  <script>
+    let teams = [];
+    let currentCategory = null;
+    let currentAnswers = [];
+    let guessedItemsPerCategory = {};
+    let currentTeamIndex = 0;
+    let totalGuesses = 0;
+    let totalGuessesThisRound = 0;
+
+    function addTeam() {
+      const input = document.getElementById("teamInput");
+      const name = input.value.trim();
+      if (name && !teams.find(t => t.name === name)) {
+        teams.push({ name, score: 0 });
+        input.value = "";
+        renderTeams();
+      }
+    }
+
+    function renderTeams() {
+      const list = document.getElementById("teamList");
+      list.innerHTML = "";
+      teams.forEach(team => {
+        const div = document.createElement("div");
+        div.className = "team-item";
+        div.innerHTML = `<span>${team.name}</span> <strong>Score: ${team.score}</strong>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderScoreboard() {
+      const bar = document.getElementById("scoreboard");
+      bar.innerHTML = "";
+      teams.forEach(team => {
+        const span = document.createElement("span");
+        span.className = "score";
+        span.textContent = `${team.name}: ${team.score}`;
+        bar.appendChild(span);
+      });
+    }
+
+    function startGame() {
+      if (teams.length === 0) {
+        alert("Please add at least one team.");
+        return;
+      }
+      document.getElementById("setupSection").classList.add("hidden");
+      document.getElementById("scoreboard").classList.remove("hidden");
+      document.getElementById("categorySection").classList.remove("hidden");
+      document.getElementById("navBar").classList.remove("hidden");
+      renderScoreboard();
+    }
+
+    function showCategoryList() {
+      const listDiv = document.getElementById("categoryList");
+      listDiv.classList.remove("hidden");
+      listDiv.innerHTML = "";
+
+      for (const cat in categories) {
+        const btn = document.createElement("button");
+        btn.textContent = cat;
+        btn.onclick = () => selectCategory(cat);
+        listDiv.appendChild(btn);
+      }
+    }
+
+    function selectRandomCategory() {
+      const all = Object.keys(categories);
+      const random = all[Math.floor(Math.random() * all.length)];
+      selectCategory(random);
+    }
+
+    function selectCategory(catName) {
+      currentCategory = catName;
+      currentAnswers = categories[catName].map(x => x.toLowerCase());
+      if (!guessedItemsPerCategory[catName]) guessedItemsPerCategory[catName] = [];
+
+      totalGuesses = teams.length * 3;
+      totalGuessesThisRound = 0;
+      currentTeamIndex = 0;
+
+      document.getElementById("categorySection").classList.add("hidden");
+      document.getElementById("guessSection").classList.remove("hidden");
+      document.getElementById("guessResult").textContent = "";
+      document.getElementById("continueButton").style.display = "none";
+      document.getElementById("currentCategoryTitle").textContent = `Category: ${catName}`;
+      updateTurnText();
+    }
+
+    function updateTurnText() {
+      document.getElementById("turnInfo").textContent =
+        `It's ${teams[currentTeamIndex].name}'s turn (${totalGuessesThisRound + 1}/${totalGuesses})`;
+    }
+
+    function submitGuess() {
+      const input = document.getElementById("guessInput");
+      const resultDiv = document.getElementById("guessResult");
+      const guess = input.value.trim().toLowerCase();
+      input.value = "";
+
+      if (!guess) return;
+
+      const alreadyGuessed = guessedItemsPerCategory[currentCategory].includes(guess);
+      const index = currentAnswers.indexOf(guess);
+      const points = (!alreadyGuessed && index >= 0) ? index + 1 : 0;
+
+      if (alreadyGuessed) {
+        resultDiv.textContent = `⚠️ "${guess}" has already been guessed in this category. No points.`;
+      } else if (points > 0) {
+        resultDiv.textContent = `✅ ${teams[currentTeamIndex].name} scored ${points} points!`;
+        teams[currentTeamIndex].score += points;
+        guessedItemsPerCategory[currentCategory].push(guess);
+      } else {
+        resultDiv.textContent = `❌ ${teams[currentTeamIndex].name} guessed wrong. No points.`;
+        guessedItemsPerCategory[currentCategory].push(guess); // still track it as used
+      }
+
+      renderScoreboard();
+      currentTeamIndex = (currentTeamIndex + 1) % teams.length;
+      totalGuessesThisRound++;
+
+      if (totalGuessesThisRound >= totalGuesses) {
+        document.getElementById("continueButton").style.display = "inline-block";
+      } else {
+        updateTurnText();
+      }
+    }
+
+    function endRound() {
+      document.getElementById("guessSection").classList.add("hidden");
+      document.getElementById("categorySection").classList.remove("hidden");
+      document.getElementById("continueButton").style.display = "none";
+    }
+
+    function restartGame() {
+      location.reload();
+    }
+
+    function returnToSetup() {
+      teams = [];
+      guessedItemsPerCategory = {};
+      document.getElementById("setupSection").classList.remove("hidden");
+      document.getElementById("categorySection").classList.add("hidden");
+      document.getElementById("guessSection").classList.add("hidden");
+      document.getElementById("scoreboard").classList.add("hidden");
+      document.getElementById("navBar").classList.add("hidden");
+      document.getElementById("teamList").innerHTML = "";
+    }
+  </script>
+</body>
+</html>
