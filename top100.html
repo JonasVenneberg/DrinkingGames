@@ -53,10 +53,6 @@
       margin-top: 10px;
     }
 
-    .guess-area {
-      margin-top: 20px;
-    }
-
     #guessResult {
       font-weight: bold;
       margin-top: 10px;
@@ -128,8 +124,7 @@
   <!-- NAVIGATION BAR -->
   <div id="navBar" class="hidden">
     <button onclick="restartGame()">🔄 Restart</button>
-    <button onclick="returnToSetup()">🏠 Setup</button>
-    <button onclick="document.getElementById('scoreboard').scrollIntoView()">📊 Scores</button>
+    <button onclick="goHome()">🏠 Home</button>
   </div>
 
   <script>
@@ -235,18 +230,20 @@
       if (!guess) return;
 
       const alreadyGuessed = guessedItemsPerCategory[currentCategory].includes(guess);
-      const index = currentAnswers.indexOf(guess);
-      const points = (!alreadyGuessed && index >= 0) ? index + 1 : 0;
-
       if (alreadyGuessed) {
-        resultDiv.textContent = `⚠️ "${guess}" has already been guessed in this category. No points.`;
-      } else if (points > 0) {
+        resultDiv.textContent = `⚠️ "${guess}" has already been guessed in this category. Try again.`;
+        return; // Do not advance turn
+      }
+
+      const index = currentAnswers.indexOf(guess);
+      const points = index >= 0 ? index + 1 : 0;
+      guessedItemsPerCategory[currentCategory].push(guess);
+
+      if (points > 0) {
         resultDiv.textContent = `✅ ${teams[currentTeamIndex].name} scored ${points} points!`;
         teams[currentTeamIndex].score += points;
-        guessedItemsPerCategory[currentCategory].push(guess);
       } else {
         resultDiv.textContent = `❌ ${teams[currentTeamIndex].name} guessed wrong. No points.`;
-        guessedItemsPerCategory[currentCategory].push(guess); // still track it as used
       }
 
       renderScoreboard();
@@ -270,16 +267,10 @@
       location.reload();
     }
 
-    function returnToSetup() {
-      teams = [];
-      guessedItemsPerCategory = {};
-      document.getElementById("setupSection").classList.remove("hidden");
-      document.getElementById("categorySection").classList.add("hidden");
-      document.getElementById("guessSection").classList.add("hidden");
-      document.getElementById("scoreboard").classList.add("hidden");
-      document.getElementById("navBar").classList.add("hidden");
-      document.getElementById("teamList").innerHTML = "";
+    function goHome() {
+      window.location.href = "index.html";
     }
+
   </script>
 </body>
 </html>
