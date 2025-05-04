@@ -1,6 +1,6 @@
 import { db } from './firebase-config.js';
 import {
-  ref, set, get, update, onValue
+  ref, set, get, update, onValue, remove
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 let lobbyId = null;
@@ -23,15 +23,12 @@ window.createLobby = async function () {
   localPlayerId = crypto.randomUUID();
   isHost = true;
 
-  const initialName = prompt("Enter your name:") || "Host";
-  const seatCount = parseInt(prompt("How many seats? (3–10)")) || 4;
-
   const players = {};
-  players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: null };
+  players[localPlayerId] = { name: "Host", joinedAt: Date.now(), seat: null };
 
   const seats = {};
-  for (let i = 1; i <= 4; i++) {
-    seats[i] = 0;  // Use 0 instead of null
+  for (let i = 1; i <= 5; i++) {
+    seats[i] = 0;
   }
 
   await set(ref(db, `lobbies/${lobbyId}`), {
@@ -80,11 +77,10 @@ function enterLobbyUI() {
   if (isHost) {
     hostControls.innerHTML = `
       <label>Edit name: <input id="hostNameInput" /></label>
-      <button onclick="updateHostName()">Save</button>
+      <button onclick="updateHostName()">Save</button><br>
+      <label>Seat count: <input id="seatCountInput" type="number" min="1" max="12" value="5" /></label>
+      <button onclick="updateSeatCount()">Apply</button>
     `;
-    document.getElementById("hostNameInput").addEventListener("keydown", e => {
-      if (e.key === "Enter") updateHostName();
-    });
   }
 }
 
@@ -93,6 +89,35 @@ window.updateHostName = async function () {
   if (newName) {
     await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { name: newName });
   }
+};
+
+window.updateSeatCount = async function () {
+  const input = document.getElementById("seatCountInput");
+  const newCount = parseInt(input.value);
+  if (isNaN(newCount) || newCount < 1 || newCount > 12) return;
+
+  const seatsRef = ref(db, `lobbies/${lobbyId}/seats`);
+  const snapshot = await get(seatsRef);
+  const currentSeats = snapshot.val() || {};
+
+  const updates = {};
+
+  // Add new seats if increasing
+  for (let i = 1; i <= newCount; i++) {
+    if (!(i in currentSeats)) updates[`seats/${i}`] = 0;
+  }
+
+  // Remove extra seats and unseat players if decreasing
+  for (let i = newCount + 1; i <= Object.keys(currentSeats).length; i++) {
+    if (currentSeats[i] !== 0) {
+      // Unseat the player
+      const pid = currentSeats[i];
+      await update(ref(db, `lobbies/${lobbyId}/players/${pid}`), { seat: null });
+    }
+    updates[`seats/${i}`] = null;
+  }
+
+  await update(ref(db, `lobbies/${lobbyId}`), updates);
 };
 
 function listenToLobby() {
