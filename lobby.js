@@ -1,6 +1,6 @@
 import { db } from './firebase-config.js';
 import {
-  ref, set, get, update, onValue, child
+  ref, set, get, update, onValue
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 let lobbyId = null;
@@ -27,7 +27,7 @@ window.createLobby = async function () {
   const seatCount = parseInt(prompt("How many seats? (3–10)")) || 4;
 
   const players = {};
-  players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: 0 };
+  players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: null };
 
   const seats = {};
   for (let i = 1; i <= seatCount; i++) seats[i] = null;
@@ -96,52 +96,60 @@ window.updateHostName = async function () {
 function listenToLobby() {
   const lobbyRef = ref(db, `lobbies/${lobbyId}`);
 
-  onValue(lobbyRef, snapshot => {
+  onValue(lobbyRef, async snapshot => {
     const data = snapshot.val();
     const players = data.players || {};
     const seats = data.seats || {};
-    const entries = Object.entries(seats);
+    const seatEntries = Object.entries(seats);
 
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
 
-    // Draw table seats
-    entries.forEach(([seatNum, playerId]) => {
-      const div = document.createElement("div");
-      div.className = "seat";
-      div.textContent = `Seat ${seatNum}`;
+    // Display horizontal seats
+    seatEntries.forEach(([seatNum, playerId]) => {
+      const seat = document.createElement("div");
+      seat.className = "seat";
+      seat.textContent = `Seat ${seatNum}`;
 
       if (playerId) {
         const player = players[playerId];
         if (player) {
-          div.textContent = player.name;
-          div.classList.add("taken");
-          if (playerId === localPlayerId) div.classList.add("self");
+          seat.textContent = player.name;
+          seat.classList.add("taken");
+          if (playerId === localPlayerId) seat.classList.add("self");
         }
       } else {
-        div.addEventListener("click", () => {
-          if (!Object.values(seats).includes(localPlayerId)) {
-            update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
-            update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { seat: parseInt(seatNum) });
+        seat.addEventListener("click", async () => {
+          // Remove player from current seat if seated
+          const currentSeat = Object.entries(seats).find(([_, id]) => id === localPlayerId);
+          if (currentSeat) {
+            await update(ref(db, `lobbies/${lobbyId}/seats/${currentSeat[0]}`), null);
           }
+
+          // Assign to new seat
+          await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
+          await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
+            seat: parseInt(seatNum)
+          });
         });
       }
 
-      tableDiv.appendChild(div);
+      tableDiv.appendChild(seat);
     });
 
-    // Draw unseated players
+    // Show unseated players
     Object.entries(players).forEach(([id, player]) => {
-      if (!player.seat) {
-        const chip = document.createElement("div");
-        chip.className = "player";
-        chip.textContent = player.name;
-        unseatedDiv.appendChild(chip);
+      const isSeated = Object.values(seats).includes(id);
+      if (!isSeated) {
+        const div = document.createElement("div");
+        div.className = "player";
+        div.textContent = player.name;
+        unseatedDiv.appendChild(div);
       }
     });
 
-    // Show start button only if all seats are filled and host is viewing
-    const allSeated = Object.values(seats).every(val => val !== null);
-    startGameButton.style.display = isHost && allSeated ? "inline-block" : "none";
+    // Show Start Game button if all seats are filled and host
+    const allFilled = Object.values(seats).every(id => id !== null);
+    startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
   });
 }
