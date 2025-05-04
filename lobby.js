@@ -30,30 +30,15 @@ window.createLobby = async function () {
   players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: null };
 
   const seats = {};
-  for (let i = 1; i <= seatCount; i++) seats[i] = null;
-
-  const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-
-  await set(lobbyRef, {
-    hostId: localPlayerId,
-    players: {
-      [localPlayerId]: {
-        name: initialName,
-        joinedAt: Date.now(),
-        seat: null
-      }
-    }
-  });
-  
-  // Write seats using full path updates so Firebase doesn't drop them
-  const seatUpdates = {};
   for (let i = 1; i <= seatCount; i++) {
-    seatUpdates[`seats/${i}`] = null;
+    seats[i] = 0;  // Use 0 instead of null
   }
-  await update(lobbyRef, seatUpdates);
-  
-  
-  
+
+  await set(ref(db, `lobbies/${lobbyId}`), {
+    hostId: localPlayerId,
+    players,
+    seats
+  });
 
   enterLobbyUI();
   listenToLobby();
@@ -117,33 +102,30 @@ function listenToLobby() {
     const data = snapshot.val();
     const players = data.players || {};
     const seats = data.seats || {};
-    const seatEntries = Object.entries(seats);
 
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
 
     // Display horizontal seats
-    seatEntries.forEach(([seatNum, playerId]) => {
+    Object.entries(seats).forEach(([seatNum, playerId]) => {
       const seat = document.createElement("div");
       seat.className = "seat";
-      seat.textContent = `Seat ${seatNum}`;
 
-      if (playerId) {
+      if (playerId !== 0) {
         const player = players[playerId];
-        if (player) {
-          seat.textContent = player.name;
-          seat.classList.add("taken");
-          if (playerId === localPlayerId) seat.classList.add("self");
-        }
+        seat.textContent = player ? player.name : "Taken";
+        seat.classList.add("taken");
+        if (playerId === localPlayerId) seat.classList.add("self");
       } else {
+        seat.textContent = `Seat ${seatNum}`;
         seat.addEventListener("click", async () => {
-          // Remove player from current seat if seated
-          const currentSeat = Object.entries(seats).find(([_, id]) => id === localPlayerId);
-          if (currentSeat) {
-            await update(ref(db, `lobbies/${lobbyId}/seats/${currentSeat[0]}`), null);
+          // Remove player from any current seat
+          for (const [num, id] of Object.entries(seats)) {
+            if (id === localPlayerId) {
+              await update(ref(db, `lobbies/${lobbyId}/seats/${num}`), 0);
+            }
           }
-
-          // Assign to new seat
+          // Assign new seat
           await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
           await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
             seat: parseInt(seatNum)
@@ -165,8 +147,8 @@ function listenToLobby() {
       }
     });
 
-    // Show Start Game button if all seats are filled and host
-    const allFilled = Object.values(seats).every(id => id !== null);
+    // Show Start Game button if all seats filled
+    const allFilled = Object.values(seats).every(id => id !== 0);
     startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
   });
 }
