@@ -136,7 +136,7 @@ function listenToLobby() {
       const seat = document.createElement("div");
       seat.className = "seat";
 
-      if (playerId !== 0 && playerId !== "0") {
+      if (String(playerId) !== "0") {
         const player = players[playerId];
         seat.textContent = player ? player.name : "Taken";
         seat.classList.add("taken");
@@ -146,10 +146,11 @@ function listenToLobby() {
         seat.addEventListener("click", async () => {
           // Remove player from any current seat
           for (const [num, id] of Object.entries(seats)) {
-            if (id === localPlayerId) {
+            if (String(id) === localPlayerId) {
               await update(ref(db, `lobbies/${lobbyId}/seats/${num}`), 0);
             }
           }
+          
           // Assign new seat
           await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
           await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
