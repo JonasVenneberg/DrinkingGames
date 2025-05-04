@@ -1,15 +1,18 @@
 import { db } from './firebase-config.js';
 import {
-  ref, set, get, onValue
+  ref, set, get, update, onValue, child
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
-
 
 let lobbyId = null;
 let localPlayerId = null;
+let isHost = false;
 
 const nicknameInput = document.getElementById("nicknameInput");
 const lobbyCodeInput = document.getElementById("lobbyCodeInput");
 const tableDiv = document.getElementById("table");
+const unseatedDiv = document.getElementById("unseatedPlayers");
+const hostControls = document.getElementById("hostControls");
+const startGameButton = document.getElementById("startGameButton");
 
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -18,17 +21,24 @@ function generateCode() {
 window.createLobby = async function () {
   lobbyId = generateCode();
   localPlayerId = crypto.randomUUID();
+  isHost = true;
+
+  const initialName = prompt("Enter your name:") || "Host";
+  const seatCount = parseInt(prompt("How many seats? (3–10)")) || 4;
+
+  const players = {};
+  players[localPlayerId] = { name: initialName, joinedAt: Date.now(), seat: 0 };
+
+  const seats = {};
+  for (let i = 1; i <= seatCount; i++) seats[i] = null;
 
   await set(ref(db, `lobbies/${lobbyId}`), {
-    players: {
-      [localPlayerId]: {
-        name: "Host",
-        joinedAt: Date.now()
-      }
-    }
+    hostId: localPlayerId,
+    players,
+    seats
   });
 
-  enterLobbyUI(lobbyId);
+  enterLobbyUI();
   listenToLobby();
 };
 
@@ -49,42 +59,89 @@ window.joinLobby = async function () {
 
   await set(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
     name,
-    joinedAt: Date.now()
+    joinedAt: Date.now(),
+    seat: null
   });
 
-  enterLobbyUI(code);
+  const data = snapshot.val();
+  isHost = data.hostId === localPlayerId;
+
+  enterLobbyUI();
   listenToLobby();
 };
 
-function enterLobbyUI(code) {
+function enterLobbyUI() {
   document.getElementById("createJoin").style.display = "none";
   document.getElementById("lobbyView").style.display = "block";
-  document.getElementById("lobbyCodeDisplay").textContent = code;
+  document.getElementById("lobbyCodeDisplay").textContent = lobbyId;
+
+  if (isHost) {
+    hostControls.innerHTML = `
+      <label>Edit name: <input id="hostNameInput" /></label>
+      <button onclick="updateHostName()">Save</button>
+    `;
+    document.getElementById("hostNameInput").addEventListener("keydown", e => {
+      if (e.key === "Enter") updateHostName();
+    });
+  }
 }
 
+window.updateHostName = async function () {
+  const newName = document.getElementById("hostNameInput").value.trim();
+  if (newName) {
+    await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { name: newName });
+  }
+};
+
 function listenToLobby() {
-  onValue(ref(db, `lobbies/${lobbyId}/players`), snapshot => {
-    const players = snapshot.val() || {};
-    const entries = Object.entries(players);
+  const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+
+  onValue(lobbyRef, snapshot => {
+    const data = snapshot.val();
+    const players = data.players || {};
+    const seats = data.seats || {};
+    const entries = Object.entries(seats);
 
     tableDiv.innerHTML = "";
-    const centerX = 150;
-    const centerY = 150;
-    const radius = 110;
-    const total = entries.length;
+    unseatedDiv.innerHTML = "";
 
-    entries.forEach(([id, player], index) => {
-      const angle = (index / total) * 2 * Math.PI;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-
+    // Draw table seats
+    entries.forEach(([seatNum, playerId]) => {
       const div = document.createElement("div");
-      div.className = "player";
-      div.style.left = `${x}px`;
-      div.style.top = `${y}px`;
-      div.style.background = id === localPlayerId ? "#ffb700" : "#333";
-      div.textContent = player.name;
+      div.className = "seat";
+      div.textContent = `Seat ${seatNum}`;
+
+      if (playerId) {
+        const player = players[playerId];
+        if (player) {
+          div.textContent = player.name;
+          div.classList.add("taken");
+          if (playerId === localPlayerId) div.classList.add("self");
+        }
+      } else {
+        div.addEventListener("click", () => {
+          if (!Object.values(seats).includes(localPlayerId)) {
+            update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
+            update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { seat: parseInt(seatNum) });
+          }
+        });
+      }
+
       tableDiv.appendChild(div);
     });
+
+    // Draw unseated players
+    Object.entries(players).forEach(([id, player]) => {
+      if (!player.seat) {
+        const chip = document.createElement("div");
+        chip.className = "player";
+        chip.textContent = player.name;
+        unseatedDiv.appendChild(chip);
+      }
+    });
+
+    // Show start button only if all seats are filled and host is viewing
+    const allSeated = Object.values(seats).every(val => val !== null);
+    startGameButton.style.display = isHost && allSeated ? "inline-block" : "none";
   });
 }

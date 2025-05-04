@@ -20,21 +20,41 @@
       border: none;
     }
     #table {
-      margin: 30px auto;
-      position: relative;
-      width: 300px;
-      height: 300px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 20px;
       background: #222;
-      border-radius: 50%;
+      padding: 10px;
+      border-radius: 12px;
+    }
+    .seat {
+      width: 100px;
+      height: 50px;
+      background: #333;
+      margin: 5px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .seat.taken {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .seat.self {
+      background: #ffb700;
+    }
+    .player-pool {
+      margin-top: 30px;
     }
     .player {
-      position: absolute;
-      background: #333;
-      padding: 10px 15px;
-      border-radius: 10px;
-      min-width: 80px;
-      text-align: center;
-      transform: translate(-50%, -50%);
+      background: #444;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin: 4px;
+      display: inline-block;
     }
   </style>
 </head>
@@ -51,7 +71,17 @@
 
   <div id="lobbyView" style="display: none;">
     <h2>Lobby Code: <span id="lobbyCodeDisplay"></span></h2>
+
+    <div id="hostControls" style="margin: 10px;"></div>
+
     <div id="table"></div>
+
+    <div class="player-pool">
+      <h3>Unseated Players:</h3>
+      <div id="unseatedPlayers"></div>
+    </div>
+
+    <button id="startGameButton" style="margin-top: 20px; display:none;">Start Game</button>
   </div>
 
   <script type="module" src="lobby.js"></script>
