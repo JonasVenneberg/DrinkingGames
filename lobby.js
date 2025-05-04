@@ -32,13 +32,25 @@ window.createLobby = async function () {
   const seats = {};
   for (let i = 1; i <= seatCount; i++) seats[i] = null;
 
-  await set(ref(db, `lobbies/${lobbyId}`), {
+  const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+
+  await set(lobbyRef, {
     hostId: localPlayerId,
-    players
+    players: {
+      [localPlayerId]: {
+        name: initialName,
+        joinedAt: Date.now(),
+        seat: null
+      }
+    }
   });
   
-  // Write seats separately to force Firebase to preserve nulls
-  await update(ref(db, `lobbies/${lobbyId}/seats`), seats);
+  // Write seats using full path updates so Firebase doesn't drop them
+  const seatUpdates = {};
+  for (let i = 1; i <= seatCount; i++) {
+    seatUpdates[`seats/${i}`] = null;
+  }
+  await update(lobbyRef, seatUpdates);
   
   
   
