@@ -121,66 +121,86 @@ window.updateSeatCount = async function () {
 };
 
 function listenToLobby() {
-  const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-
-  onValue(lobbyRef, async snapshot => {
-    const data = snapshot.val();
-    const players = data.players || {};
-    const seats = data.seats || {};
-
-    tableDiv.innerHTML = "";
-    unseatedDiv.innerHTML = "";
-
-    // Display horizontal seats
-    Object.entries(seats).forEach(([seatNum, playerId]) => {
-      const seat = document.createElement("div");
-      seat.className = "seat";
-
-      if (String(playerId) !== "0") {
-        const player = players[playerId];
-        seat.textContent = player ? player.name : "Taken";
-        seat.classList.add("taken");
-        if (playerId === localPlayerId) seat.classList.add("self");
-      } else {
-        seat.textContent = `Seat ${seatNum}`;
-        seat.addEventListener("click", async () => {
+    const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+  
+    onValue(lobbyRef, async snapshot => {
+      const data = snapshot.val();
+      const players = data.players || {};
+      const seats = data.seats || {};
+      const seatEntries = Object.entries(seats);
+      const totalSeats = seatEntries.length;
+  
+      tableDiv.innerHTML = "";
+      unseatedDiv.innerHTML = "";
+  
+      const radius = 120;
+      const centerX = 140;
+      const centerY = 140;
+  
+      seatEntries.forEach(([seatNum, playerId], index) => {
+        const angle = (index / totalSeats) * 2 * Math.PI;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+  
+        const seat = document.createElement("div");
+        seat.className = "seat";
+        seat.style.left = `${x}px`;
+        seat.style.top = `${y}px`;
+        seat.setAttribute("data-seat", seatNum);
+  
+        if (String(playerId) !== "0") {
+          const player = players[playerId];
+          seat.textContent = player ? player.name : "Taken";
+          seat.classList.add("taken");
+          if (playerId === localPlayerId) seat.classList.add("self");
+        } else {
+          seat.textContent = `Seat ${seatNum}`;
+          seat.addEventListener("click", async () => {
             const updates = {};
-          
-            // Unseat player from any current seat
             for (const [num, id] of Object.entries(seats)) {
               if (String(id) === localPlayerId) {
                 updates[`seats/${num}`] = 0;
               }
             }
-          
-            // Assign new seat
             updates[`seats/${seatNum}`] = localPlayerId;
-          
             await update(ref(db, `lobbies/${lobbyId}`), updates);
-          
             await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
               seat: parseInt(seatNum)
             });
           });
-          
+        }
+  
+        tableDiv.appendChild(seat);
+      });
+  
+      // Show unseated players
+      Object.entries(players).forEach(([id, player]) => {
+        const isSeated = Object.values(seats).includes(id);
+        if (!isSeated) {
+          const div = document.createElement("div");
+          div.className = "player";
+          div.textContent = player.name;
+          unseatedDiv.appendChild(div);
+        }
+      });
+  
+      // Toggle unseat button
+      const unseatBtn = document.getElementById("unseatButton");
+      const playerSeat = Object.entries(seats).find(([_, id]) => String(id) === localPlayerId);
+      if (unseatBtn) {
+        unseatBtn.style.display = playerSeat ? "inline-block" : "none";
+        unseatBtn.onclick = async () => {
+          if (playerSeat) {
+            const [seatNum] = playerSeat;
+            await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
+            await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { seat: null });
+          }
+        };
       }
-
-      tableDiv.appendChild(seat);
+  
+      // Show Start Game button if all seats filled
+      const allFilled = Object.values(seats).every(id => id !== 0 && id !== "0");
+      startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
     });
-
-    // Show unseated players
-    Object.entries(players).forEach(([id, player]) => {
-      const isSeated = Object.values(seats).includes(id);
-      if (!isSeated) {
-        const div = document.createElement("div");
-        div.className = "player";
-        div.textContent = player.name;
-        unseatedDiv.appendChild(div);
-      }
-    });
-
-    // Show Start Game button if all seats filled
-    const allFilled = Object.values(seats).every(id => id !== 0);
-    startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
-  });
-}
+  }
+  
