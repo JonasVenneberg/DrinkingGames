@@ -144,19 +144,25 @@ function listenToLobby() {
       } else {
         seat.textContent = `Seat ${seatNum}`;
         seat.addEventListener("click", async () => {
-          // Remove player from any current seat
-          for (const [num, id] of Object.entries(seats)) {
-            if (String(id) === localPlayerId) {
-                await update(ref(db, `lobbies/${lobbyId}/seats/${parseInt(seatNum)}`), localPlayerId);
-            }
-          }
+            const updates = {};
           
-          // Assign new seat
-          await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), localPlayerId);
-          await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
-            seat: parseInt(seatNum)
+            // Unseat player from any current seat
+            for (const [num, id] of Object.entries(seats)) {
+              if (String(id) === localPlayerId) {
+                updates[`seats/${num}`] = 0;
+              }
+            }
+          
+            // Assign new seat
+            updates[`seats/${seatNum}`] = localPlayerId;
+          
+            await update(ref(db, `lobbies/${lobbyId}`), updates);
+          
+            await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
+              seat: parseInt(seatNum)
+            });
           });
-        });
+          
       }
 
       tableDiv.appendChild(seat);
