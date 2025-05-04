@@ -147,7 +147,7 @@ function listenToLobby() {
           // Remove player from any current seat
           for (const [num, id] of Object.entries(seats)) {
             if (String(id) === localPlayerId) {
-              await update(ref(db, `lobbies/${lobbyId}/seats/${num}`), 0);
+                await update(ref(db, `lobbies/${lobbyId}/seats/${parseInt(seatNum)}`), localPlayerId);
             }
           }
           
