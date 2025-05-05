@@ -138,6 +138,12 @@ function listenToLobby() {
     const centerX = 140;
     const centerY = 140;
 
+    if (!players[localPlayerId]) {
+      alert("You have been removed from the lobby.");
+      location.reload();
+      return;
+    }    
+
     seatEntries.forEach(([seatNum, playerId], index) => {
       const angle = (index / totalSeats) * 2 * Math.PI;
       const x = centerX + radius * Math.cos(angle);
