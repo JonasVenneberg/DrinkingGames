@@ -251,9 +251,9 @@ function listenToLobby() {
     if (!isHost && leaveBtn) {
       leaveBtn.style.display = "inline-block";
       leaveBtn.onclick = async () => {
+        leftLobby = true;
         await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
         location.reload();
-        leftLobby = true;
       };
     }
 
