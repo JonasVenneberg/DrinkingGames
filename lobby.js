@@ -131,18 +131,19 @@ function listenToLobby() {
     const seatEntries = Object.entries(seats);
     const totalSeats = seatEntries.length;
 
+    // ✅ Detect if player has been removed (kicked)
+    if (!players[localPlayerId]) {
+      alert("You have been removed from the lobby.");
+      location.reload();
+      return;
+    }
+
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
 
     const radius = 120;
     const centerX = 140;
     const centerY = 140;
-
-    if (!players[localPlayerId]) {
-      alert("You have been removed from the lobby.");
-      location.reload();
-      return;
-    }    
 
     seatEntries.forEach(([seatNum, playerId], index) => {
       const angle = (index / totalSeats) * 2 * Math.PI;
@@ -161,7 +162,6 @@ function listenToLobby() {
         seat.classList.add("taken");
         if (playerId === localPlayerId) seat.classList.add("self");
 
-        // ✅ Host can unseat other players
         if (isHost) {
           seat.style.cursor = "pointer";
           seat.onclick = async () => {
@@ -200,7 +200,6 @@ function listenToLobby() {
       tableDiv.appendChild(seat);
     });
 
-    // Unseated player pool
     Object.entries(players).forEach(([id, player]) => {
       const isSeated = Object.values(seats).includes(id);
       if (!isSeated) {
@@ -211,12 +210,7 @@ function listenToLobby() {
         if (isHost && id !== localPlayerId) {
           div.style.cursor = "pointer";
           div.onclick = async () => {
-            await update(ref(db, `lobbies/${lobbyId}/players/${id}`), {
-              blockedUntil: Date.now() + 3000
-            });
-            setTimeout(() => {
-              remove(ref(db, `lobbies/${lobbyId}/players/${id}`));
-            }, 100);
+            await remove(ref(db, `lobbies/${lobbyId}/players/${id}`));
           };
         }
 
@@ -224,7 +218,6 @@ function listenToLobby() {
       }
     });
 
-    // ✅ "Leave Seat" button for current player
     const unseatBtn = document.getElementById("unseatButton");
     if (unseatBtn) {
       const updates = {};
@@ -244,6 +237,16 @@ function listenToLobby() {
           seat: null,
           blockedUntil: Date.now() + 3000
         });
+      };
+    }
+
+    // ✅ Show "Leave Lobby" button if not host
+    const leaveBtn = document.getElementById("leaveLobbyButton");
+    if (!isHost && leaveBtn) {
+      leaveBtn.style.display = "inline-block";
+      leaveBtn.onclick = async () => {
+        await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
+        location.reload();
       };
     }
 
