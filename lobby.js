@@ -130,7 +130,6 @@ function listenToLobby() {
     const seats = data.seats || {};
     const seatEntries = Object.entries(seats);
     const totalSeats = seatEntries.length;
-    const now = Date.now();
 
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
@@ -156,10 +155,13 @@ function listenToLobby() {
         seat.classList.add("taken");
         if (playerId === localPlayerId) seat.classList.add("self");
 
+        // ✅ Host can unseat other players
         if (isHost) {
           seat.style.cursor = "pointer";
           seat.onclick = async () => {
-            await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
+            const updates = {};
+            updates[`seats/${seatNum}`] = 0;
+            await update(ref(db, `lobbies/${lobbyId}`), updates);
             await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), {
               seat: null,
               blockedUntil: Date.now() + 3000
@@ -175,10 +177,13 @@ function listenToLobby() {
 
           const updates = {};
           for (const [num, id] of Object.entries(seats)) {
-            if (String(id) === localPlayerId) updates[`seats/${num}`] = 0;
+            if (String(id) === localPlayerId) {
+              updates[`seats/${num}`] = 0;
+            }
           }
 
           updates[`seats/${seatNum}`] = localPlayerId;
+
           await update(ref(db, `lobbies/${lobbyId}`), updates);
           await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
             seat: parseInt(seatNum)
@@ -189,6 +194,7 @@ function listenToLobby() {
       tableDiv.appendChild(seat);
     });
 
+    // Unseated player pool
     Object.entries(players).forEach(([id, player]) => {
       const isSeated = Object.values(seats).includes(id);
       if (!isSeated) {
@@ -212,20 +218,26 @@ function listenToLobby() {
       }
     });
 
-    // Ensure unseat button works
+    // ✅ "Leave Seat" button for current player
     const unseatBtn = document.getElementById("unseatButton");
-    const playerSeat = Object.entries(seats).find(([_, id]) => String(id) === localPlayerId);
     if (unseatBtn) {
-      unseatBtn.style.display = playerSeat ? "inline-block" : "none";
-      unseatBtn.onclick = async () => {
-        if (playerSeat) {
-          const [seatNum] = playerSeat;
-          await set(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
-          await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
-            seat: null,
-            blockedUntil: Date.now() + 3000
-          });
+      const updates = {};
+      for (const [num, id] of Object.entries(seats)) {
+        if (String(id) === localPlayerId) {
+          updates[`seats/${num}`] = 0;
         }
+      }
+
+      const isSeated = Object.keys(updates).length > 0;
+      unseatBtn.style.display = isSeated ? "inline-block" : "none";
+
+      unseatBtn.onclick = async () => {
+        if (!isSeated) return;
+        await update(ref(db, `lobbies/${lobbyId}`), updates);
+        await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
+          seat: null,
+          blockedUntil: Date.now() + 3000
+        });
       };
     }
 
