@@ -14,7 +14,7 @@ const unseatedDiv = document.getElementById("unseatedPlayers");
 const hostControls = document.getElementById("hostControls");
 const startGameButton = document.getElementById("startGameButton");
 
-const leftLobby = false;
+let leftLobby = false;
 
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
