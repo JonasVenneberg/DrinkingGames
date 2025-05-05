@@ -220,7 +220,7 @@ function listenToLobby() {
       unseatBtn.onclick = async () => {
         if (playerSeat) {
           const [seatNum] = playerSeat;
-          await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
+          await set(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
           await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
             seat: null,
             blockedUntil: Date.now() + 3000
