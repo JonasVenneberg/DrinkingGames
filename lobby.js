@@ -157,6 +157,7 @@ function listenToLobby() {
         if (playerId === localPlayerId) seat.classList.add("self");
 
         if (isHost) {
+          seat.style.cursor = "pointer";
           seat.onclick = async () => {
             await update(ref(db, `lobbies/${lobbyId}/seats/${seatNum}`), 0);
             await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), {
@@ -167,6 +168,7 @@ function listenToLobby() {
         }
       } else {
         seat.textContent = `Seat ${seatNum}`;
+        seat.style.cursor = "pointer";
         seat.addEventListener("click", async () => {
           const playerData = players[localPlayerId];
           if (playerData?.blockedUntil && Date.now() < playerData.blockedUntil) return;
@@ -210,6 +212,7 @@ function listenToLobby() {
       }
     });
 
+    // Ensure unseat button works
     const unseatBtn = document.getElementById("unseatButton");
     const playerSeat = Object.entries(seats).find(([_, id]) => String(id) === localPlayerId);
     if (unseatBtn) {
