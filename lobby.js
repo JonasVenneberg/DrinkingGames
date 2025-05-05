@@ -14,6 +14,8 @@ const unseatedDiv = document.getElementById("unseatedPlayers");
 const hostControls = document.getElementById("hostControls");
 const startGameButton = document.getElementById("startGameButton");
 
+const leftLobby = false;
+
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -133,7 +135,11 @@ function listenToLobby() {
 
     // ✅ Detect if player has been removed (kicked)
     if (!players[localPlayerId]) {
-      alert("You have been removed from the lobby.");
+      if (!leftLobby)
+      {
+        alert("You have been removed from the lobby.");
+      }
+      leftLobby = false;
       location.reload();
       return;
     }
@@ -247,6 +253,7 @@ function listenToLobby() {
       leaveBtn.onclick = async () => {
         await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
         location.reload();
+        leftLobby = true;
       };
     }
 
