@@ -274,6 +274,10 @@ function listenToLobby() {
 
     const allFilled = Object.values(seats).every(id => id !== 0 && id !== "0");
     startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
+    startGameButton.onclick = () => {
+      window.location.href = `pong.html?code=${lobbyId}`;
+    };
+    
   });
 
   const shareBtn = document.getElementById("shareLobbyButton");
