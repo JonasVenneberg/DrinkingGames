@@ -72,7 +72,6 @@ window.joinLobby = async function () {
 
   enterLobbyUI();
   listenToLobby();
-  history.replaceState({}, "", "lobby.html");
 };
 
 window.saveNewName = async function () {
@@ -309,5 +308,7 @@ if (autoJoinCode) {
   window.addEventListener("DOMContentLoaded", () => {
     lobbyCodeInput.value = autoJoinCode;
     joinLobby();
+    
+    history.replaceState({}, "", "/DrinkingGames/lobby.html");
   });
 }
