@@ -256,8 +256,31 @@ function listenToLobby() {
         location.reload();
       };
     }
-
     const allFilled = Object.values(seats).every(id => id !== 0 && id !== "0");
     startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
   });
+
+  const shareBtn = document.getElementById("shareLobbyButton");
+  if (shareBtn) {
+    shareBtn.onclick = () => {
+      const url = `${location.origin}/lobby.html?code=${lobbyId}`;
+      const qr = new QRious({
+        element: document.getElementById('qrCodeContainer'),
+        value: url,
+        size: 200
+      });
+
+      const copyBtn = document.getElementById("copyLinkButton");
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          alert("Lobby link copied to clipboard!");
+        } catch (err) {
+          alert("Failed to copy.");
+        }
+      };
+      
+      document.getElementById("qrModal").style.display = "block";
+    };
+  }
 }

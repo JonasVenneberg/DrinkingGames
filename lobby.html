@@ -90,6 +90,16 @@
     <div id="hostControls" style="margin: 10px;"></div>
     <button id="leaveLobbyButton" style="display: none; margin-top: 10px;">Leave Lobby</button>
 
+    <button id="shareLobbyButton" style="margin-top: 10px;">Share Lobby</button>
+
+    <div id="qrModal" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: white; border: 1px solid #aaa; padding: 20px; z-index: 1000; text-align: center;">
+      <div id="qrCodeContainer"></div>
+      <button id="copyLinkButton" style="margin-top: 10px;">Copy Link</button>
+      <br><br>
+      <button onclick="document.getElementById('qrModal').style.display='none'">Close</button>
+    </div>
+
 
     <div id="table"></div>
 
@@ -103,6 +113,7 @@
     <button id="startGameButton" style="margin-top: 20px; display:none;">Start Game</button>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script type="module" src="lobby.js"></script>
 </body>
 </html>
