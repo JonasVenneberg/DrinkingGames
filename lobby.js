@@ -72,6 +72,7 @@ window.joinLobby = async function () {
 
   enterLobbyUI();
   listenToLobby();
+  history.replaceState({}, "", "lobby.html");
 };
 
 window.saveNewName = async function () {
