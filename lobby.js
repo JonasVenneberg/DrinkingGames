@@ -264,11 +264,16 @@ function listenToLobby() {
   if (shareBtn) {
     shareBtn.onclick = () => {
       const url = `${location.origin}/lobby.html?code=${lobbyId}`;
+      const qrContainer = document.getElementById('qrCodeContainer');
+      qrContainer.innerHTML = ''; // clear any previous QR
       const qr = new QRious({
-        element: document.getElementById('qrCodeContainer'),
         value: url,
         size: 200
       });
+      const img = document.createElement('img');
+      img.src = qr.toDataURL();
+      qrContainer.appendChild(img);
+      
 
       const copyBtn = document.getElementById("copyLinkButton");
       copyBtn.onclick = async () => {
@@ -279,7 +284,7 @@ function listenToLobby() {
           alert("Failed to copy.");
         }
       };
-      
+
       document.getElementById("qrModal").style.display = "block";
     };
   }
