@@ -132,12 +132,17 @@ function listenToLobby() {
     const seatEntries = Object.entries(seats);
     const totalSeats = seatEntries.length;
 
-    // ✅ Detect if player has been removed (kicked)
-    if (!players[localPlayerId]) {
+    const me = players[localPlayerId];
+    if (!me) {
       alert("You have been removed from the lobby.");
       location.reload();
       return;
     }
+    if (me.status === "left") {
+      location.reload(); // silent leave, no alert
+      return;
+    }
+    
 
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
@@ -246,7 +251,11 @@ function listenToLobby() {
     if (!isHost && leaveBtn) {
       leaveBtn.style.display = "inline-block";
       leaveBtn.onclick = async () => {
-        await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
+        await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { status: "left" });
+        setTimeout(async () => {
+          await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
+          location.reload();
+        }, 200);
         location.reload();
       };
     }
