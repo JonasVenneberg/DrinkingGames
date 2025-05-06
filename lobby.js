@@ -279,7 +279,7 @@ function listenToLobby() {
   const shareBtn = document.getElementById("shareLobbyButton");
   if (shareBtn) {
     shareBtn.onclick = () => {
-      const url = `${location.origin}/lobby.html?code=${lobbyId}`;
+      const url = `${location.origin}/DrinkingGames/lobby.html?code=${lobbyId}`;
       const qrContainer = document.getElementById('qrCodeContainer');
       qrContainer.innerHTML = '';
       const qr = new QRious({ value: url, size: 200 });
