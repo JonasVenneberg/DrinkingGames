@@ -1,7 +1,52 @@
+import { db } from './firebase-config.js';
+import {
+  ref, get, set, update, onValue
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const msg = document.getElementById("message");
 
+const lobbyId = new URLSearchParams(window.location.search).get("code");
+const playerId = crypto.randomUUID();
+const gameRef = ref(db, `games/${lobbyId}`);
+const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+
+let isCurrentPlayer = false;
+let seatingOrder = [];
+let seats = {};
+let players = {};
+
+onValue(gameRef, snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
+  isCurrentPlayer = data.currentPlayer === playerId;
+});
+
+onValue(lobbyRef, snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
+  players = data.players || {};
+  seats = data.seats || {};
+
+  // Generate seating order
+  seatingOrder = Object.entries(seats)
+    .filter(([_, pid]) => pid && pid !== 0)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+    .map(([_, pid]) => pid);
+
+  // Start the game if not already started
+  get(gameRef).then(snap => {
+    if (!snap.exists()) {
+      const first = seatingOrder[0];
+      if (first) {
+        set(gameRef, { currentPlayer: first });
+      }
+    }
+  });
+});
+
+// Paddle and ball setup
 const paddle = {
   x: 120,
   y: 470,
@@ -20,36 +65,27 @@ const ball = {
 
 const gapSize = 50;
 let punishmentShown = false;
-
-// Track key state
 let keyPressed = {};
 
-// Touch input (mobile)
 canvas.addEventListener("touchmove", e => {
+  if (!isCurrentPlayer || punishmentShown) return;
   const touch = e.touches[0];
   const rect = canvas.getBoundingClientRect();
   const touchX = touch.clientX - rect.left;
-
   paddle.prevX = paddle.x;
   paddle.x = Math.max(0, Math.min(touchX - paddle.width / 2, canvas.width - paddle.width));
 });
 
-// Mouse input (desktop)
 canvas.addEventListener("mousemove", e => {
+  if (!isCurrentPlayer || punishmentShown) return;
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
-
   paddle.prevX = paddle.x;
   paddle.x = Math.max(0, Math.min(mouseX - paddle.width / 2, canvas.width - paddle.width));
 });
 
-// Keyboard input (desktop)
-document.addEventListener("keydown", e => {
-  keyPressed[e.key.toLowerCase()] = true;
-});
-document.addEventListener("keyup", e => {
-  keyPressed[e.key.toLowerCase()] = false;
-});
+document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keyPressed[e.key.toLowerCase()] = false);
 
 function drawPaddle() {
   ctx.fillStyle = "white";
@@ -66,10 +102,9 @@ function drawBall() {
 
 function drawGaps() {
   ctx.fillStyle = "lime";
-  ctx.fillRect(0, 0, gapSize, 10); // Left pass
-  ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10); // Right pass
+  ctx.fillRect(0, 0, gapSize, 10); // Left
+  ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10); // Right
 
-  // Draw center wall
   const wallStart = gapSize;
   const wallEnd = canvas.width - gapSize;
   ctx.fillStyle = "white";
@@ -81,55 +116,59 @@ function showMessage(text) {
 }
 
 function resetBall(message) {
-    showMessage(message + " ⏳");
-    punishmentShown = true;
-  
-    setTimeout(() => {
-      ball.x = 150;
-      ball.y = 100;
-      ball.dx = 0;
-      ball.dy = 5; // faster ball
-      punishmentShown = false;
-      showMessage("");
-    }, 5000); // 5 second delay
+  showMessage(message + " ⏳");
+  punishmentShown = true;
+
+  setTimeout(() => {
+    ball.x = 150;
+    ball.y = 100;
+    ball.dx = 0;
+    ball.dy = 5;
+    punishmentShown = false;
+    showMessage("");
+  }, 5000);
+}
+
+function getNextPlayer(direction) {
+  const index = seatingOrder.indexOf(playerId);
+  if (index === -1) return playerId;
+  let nextIndex;
+  if (direction === "left") {
+    nextIndex = (index - 1 + seatingOrder.length) % seatingOrder.length;
+  } else {
+    nextIndex = (index + 1) % seatingOrder.length;
   }
-  
+  return seatingOrder[nextIndex];
+}
 
 function update() {
-  if (punishmentShown) return;
+  if (punishmentShown || !isCurrentPlayer) return;
 
-  // Keyboard controls
   paddle.prevX = paddle.x;
   const moveSpeed = 5;
-  if (keyPressed["arrowleft"] || keyPressed["a"]) {
-    paddle.x -= moveSpeed;
-  }
-  if (keyPressed["arrowright"] || keyPressed["d"]) {
-    paddle.x += moveSpeed;
-  }
-
-  // Clamp paddle
+  if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
+  if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
   paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 
-  // Ball movement
   ball.x += ball.dx;
   ball.y += ball.dy;
 
-  // Wall bounce
-  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) ball.dx *= -1;
+  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+    ball.dx *= -1;
+  }
 
-  // Top bounce or pass
   if (ball.y - ball.radius <= 10) {
     if (ball.x > gapSize && ball.x < canvas.width - gapSize) {
       ball.dy *= -1; // center wall
     } else if (ball.x < gapSize) {
+      update(gameRef, { currentPlayer: getNextPlayer("left") });
       resetBall("⬅️ Passed to the left!");
     } else if (ball.x > canvas.width - gapSize) {
+      update(gameRef, { currentPlayer: getNextPlayer("right") });
       resetBall("➡️ Passed to the right!");
     }
   }
 
-  // Paddle bounce
   const paddleMoved = paddle.x - paddle.prevX;
   if (
     ball.y + ball.radius >= paddle.y &&
@@ -143,9 +182,9 @@ function update() {
     ball.dx = Math.max(-5, Math.min(5, ball.dx));
   }
 
-  // Bottom miss
   if (ball.y - ball.radius > canvas.height) {
-    resetBall("💥 You missed! Punishment time!");
+    update(gameRef, { currentPlayer: getNextPlayer("right") });
+    resetBall("💥 You missed! Next player takes over!");
   }
 }
 
