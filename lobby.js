@@ -252,11 +252,10 @@ function listenToLobby() {
       leaveBtn.style.display = "inline-block";
       leaveBtn.onclick = async () => {
         await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { status: "left" });
-        setTimeout(async () => {
-          await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
+        await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
+        setTimeout(() => {
           location.reload();
-        }, 200);
-        location.reload();
+        }, 100);        
       };
     }
 
