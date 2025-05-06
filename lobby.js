@@ -6,6 +6,7 @@ import {
 let lobbyId = null;
 let localPlayerId = null;
 let isHost = false;
+let leftLobby = false;
 
 const nicknameInput = document.getElementById("nicknameInput");
 const lobbyCodeInput = document.getElementById("lobbyCodeInput");
@@ -134,14 +135,13 @@ function listenToLobby() {
 
     const me = players[localPlayerId];
     if (!me) {
-      alert("You have been removed from the lobby.");
+      if (!leftLobby) {
+        alert("You have been removed from the lobby.");
+      }
       location.reload();
       return;
     }
-    if (me.status === "left") {
-      location.reload(); // silent leave, no alert
-      return;
-    }
+    
     
 
     tableDiv.innerHTML = "";
@@ -251,11 +251,9 @@ function listenToLobby() {
     if (!isHost && leaveBtn) {
       leaveBtn.style.display = "inline-block";
       leaveBtn.onclick = async () => {
-        await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { status: "left" });
+        leftLobby = true;
         await remove(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`));
-        setTimeout(() => {
-          location.reload();
-        }, 100);        
+        location.reload();
       };
     }
 
