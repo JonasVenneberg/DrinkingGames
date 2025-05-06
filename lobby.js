@@ -8,16 +8,19 @@ let localPlayerId = null;
 let isHost = false;
 let leftLobby = false;
 
-const nicknameInput = document.getElementById("nicknameInput");
 const lobbyCodeInput = document.getElementById("lobbyCodeInput");
 const tableDiv = document.getElementById("table");
 const unseatedDiv = document.getElementById("unseatedPlayers");
 const hostControls = document.getElementById("hostControls");
 const startGameButton = document.getElementById("startGameButton");
 
-
 function generateCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function getQueryParam(name) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
 }
 
 window.createLobby = async function () {
@@ -45,7 +48,7 @@ window.createLobby = async function () {
 
 window.joinLobby = async function () {
   const code = lobbyCodeInput.value.trim().toUpperCase();
-  const name = nicknameInput.value.trim() || "Player";
+  if (!code) return;
 
   const lobbyRef = ref(db, `lobbies/${code}`);
   const snapshot = await get(lobbyRef);
@@ -59,7 +62,7 @@ window.joinLobby = async function () {
   localPlayerId = crypto.randomUUID();
 
   await set(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
-    name,
+    name: "Player",
     joinedAt: Date.now(),
     seat: null
   });
@@ -69,6 +72,16 @@ window.joinLobby = async function () {
 
   enterLobbyUI();
   listenToLobby();
+};
+
+window.saveNewName = async function () {
+  const input = document.getElementById("nameChangeInput");
+  if (input) {
+    const newName = input.value.trim();
+    if (newName) {
+      await update(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), { name: newName });
+    }
+  }
 };
 
 function enterLobbyUI() {
@@ -88,6 +101,11 @@ function enterLobbyUI() {
       await remove(ref(db, `lobbies/${lobbyId}`));
       location.reload();
     };
+  } else {
+    hostControls.innerHTML = `
+      <label>Choose your name: <input id="nameChangeInput" /></label>
+      <button onclick="saveNewName()">Save</button>
+    `;
   }
 }
 
@@ -141,8 +159,6 @@ function listenToLobby() {
       location.reload();
       return;
     }
-    
-    
 
     tableDiv.innerHTML = "";
     unseatedDiv.innerHTML = "";
@@ -246,7 +262,6 @@ function listenToLobby() {
       };
     }
 
-    // ✅ Show "Leave Lobby" button if not host
     const leaveBtn = document.getElementById("leaveLobbyButton");
     if (!isHost && leaveBtn) {
       leaveBtn.style.display = "inline-block";
@@ -256,6 +271,7 @@ function listenToLobby() {
         location.reload();
       };
     }
+
     const allFilled = Object.values(seats).every(id => id !== 0 && id !== "0");
     startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
   });
@@ -265,15 +281,11 @@ function listenToLobby() {
     shareBtn.onclick = () => {
       const url = `${location.origin}/lobby.html?code=${lobbyId}`;
       const qrContainer = document.getElementById('qrCodeContainer');
-      qrContainer.innerHTML = ''; // clear any previous QR
-      const qr = new QRious({
-        value: url,
-        size: 200
-      });
+      qrContainer.innerHTML = '';
+      const qr = new QRious({ value: url, size: 200 });
       const img = document.createElement('img');
       img.src = qr.toDataURL();
       qrContainer.appendChild(img);
-      
 
       const copyBtn = document.getElementById("copyLinkButton");
       copyBtn.onclick = async () => {
@@ -288,4 +300,13 @@ function listenToLobby() {
       document.getElementById("qrModal").style.display = "block";
     };
   }
+}
+
+// ✅ Auto-join if lobby code is in URL
+const autoJoinCode = getQueryParam("code");
+if (autoJoinCode) {
+  window.addEventListener("DOMContentLoaded", () => {
+    lobbyCodeInput.value = autoJoinCode;
+    joinLobby();
+  });
 }
