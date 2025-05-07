@@ -13,11 +13,24 @@ const gameRef = ref(db, `games/${lobbyId}`);
 const lobbyRef = ref(db, `lobbies/${lobbyId}`);
 
 let isCurrentPlayer = false;
+let currentPlayerId = null;
 let seatingOrder = [];
 let seats = {};
 let players = {};
 let localResetTime = 0;
-let currentPlayerId = null;
+let messageTimeout;
+
+function showMessage(text) {
+  msg.textContent = text;
+}
+
+function setTemporaryMessage(text, fallback) {
+  clearTimeout(messageTimeout);
+  showMessage(text);
+  messageTimeout = setTimeout(() => {
+    showMessage(fallback);
+  }, 2500);
+}
 
 function tryStartGame() {
   if (seatingOrder.length === 0) return;
@@ -38,11 +51,13 @@ onValue(gameRef, snapshot => {
   currentPlayerId = data.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
 
-  const name = players[currentPlayerId]?.name || "Another player";
+  const name = players[currentPlayerId]?.name;
   if (isCurrentPlayer) {
     showMessage("🎯 Your turn!");
-  } else {
+  } else if (name) {
     showMessage(`⏳ ${name} is playing...`);
+  } else {
+    showMessage("⏳ A player is playing...");
   }
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
@@ -91,16 +106,13 @@ function updatePaddle() {
   paddle.prevX = paddle.x;
   const moveSpeed = 5;
 
-  // Keyboard input
   if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
   if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
 
-  // Mouse or touch input
   if (lastInputX !== null) {
     paddle.x = lastInputX - paddle.width / 2;
   }
 
-  // Clamp position
   paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 }
 
@@ -125,10 +137,6 @@ function drawGaps() {
   ctx.fillRect(gapSize, 0, canvas.width - 2 * gapSize, 10);
 }
 
-function showMessage(text) {
-  msg.textContent = text;
-}
-
 function resetBall() {
   punishmentShown = true;
   setTimeout(() => {
@@ -149,13 +157,15 @@ function getNextPlayer(direction) {
   return seatingOrder[nextIndex];
 }
 
-function triggerNextTurn(direction, message) {
+function triggerNextTurn(direction, passMessage) {
   const nextPlayer = getNextPlayer(direction);
   update(gameRef, {
     currentPlayer: nextPlayer,
     ballResetTime: Date.now()
   });
-  showMessage(message);
+
+  const fallback = `⏳ ${players[nextPlayer]?.name || "A player"} is playing...`;
+  setTemporaryMessage(passMessage, fallback);
   resetBall();
 }
 
@@ -193,7 +203,7 @@ function updateGame() {
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    showMessage("💥 You missed! Try again in 5 seconds!");
+    setTemporaryMessage("💥 You missed! Try again in 5 seconds!", `⏳ ${players[playerId]?.name || "You"} are playing...`);
     resetBall();
   }
 }
