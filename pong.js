@@ -67,30 +67,35 @@ const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
 const gapSize = 50;
 let punishmentShown = false;
 let keyPressed = {};
-
-canvas.addEventListener("touchmove", e => {
-  const touch = e.touches[0];
-  const rect = canvas.getBoundingClientRect();
-  const touchX = touch.clientX - rect.left;
-  paddle.prevX = paddle.x;
-  paddle.x = Math.max(0, Math.min(touchX - paddle.width / 2, canvas.width - paddle.width));
-});
-
-canvas.addEventListener("mousemove", e => {
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  paddle.prevX = paddle.x;
-  paddle.x = Math.max(0, Math.min(mouseX - paddle.width / 2, canvas.width - paddle.width));
-});
+let lastInputX = null;
 
 document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keyPressed[e.key.toLowerCase()] = false);
 
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  lastInputX = e.clientX - rect.left;
+});
+canvas.addEventListener("touchmove", e => {
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  lastInputX = touch.clientX - rect.left;
+});
+
 function updatePaddle() {
   paddle.prevX = paddle.x;
   const moveSpeed = 5;
+
+  // Keyboard input
   if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
   if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
+
+  // Mouse or touch input
+  if (lastInputX !== null) {
+    paddle.x = lastInputX - paddle.width / 2;
+  }
+
+  // Clamp position
   paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 }
 
@@ -122,7 +127,6 @@ function showMessage(text) {
 function resetBall(message) {
   showMessage(message);
   punishmentShown = true;
-
   setTimeout(() => {
     ball.x = 150;
     ball.y = 100;
@@ -197,7 +201,7 @@ function draw() {
 }
 
 function loop() {
-  updatePaddle(); // always track paddle
+  updatePaddle();
   if (isCurrentPlayer && !punishmentShown) updateGame();
   draw();
   requestAnimationFrame(loop);
