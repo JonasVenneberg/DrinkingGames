@@ -17,10 +17,24 @@ let seatingOrder = [];
 let seats = {};
 let players = {};
 
+let localResetTime = 0;
+
+// Track who is in control
 onValue(gameRef, snapshot => {
   const data = snapshot.val();
   if (!data) return;
+
   isCurrentPlayer = data.currentPlayer === playerId;
+
+  // Optional visual cue
+  if (!isCurrentPlayer) {
+    showMessage("⏳ Waiting for your turn...");
+  }
+
+  if (data.ballResetTime && data.ballResetTime !== localResetTime) {
+    localResetTime = data.ballResetTime;
+    resetBall("🎯 Your turn!");
+  }
 });
 
 onValue(lobbyRef, snapshot => {
@@ -29,13 +43,11 @@ onValue(lobbyRef, snapshot => {
   players = data.players || {};
   seats = data.seats || {};
 
-  // Generate seating order
   seatingOrder = Object.entries(seats)
     .filter(([_, pid]) => pid && pid !== 0)
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
     .map(([_, pid]) => pid);
 
-  // Start the game if not already started
   get(gameRef).then(snap => {
     if (!snap.exists()) {
       const first = seatingOrder[0];
@@ -47,21 +59,8 @@ onValue(lobbyRef, snapshot => {
 });
 
 // Paddle and ball setup
-const paddle = {
-  x: 120,
-  y: 470,
-  width: 60,
-  height: 10,
-  prevX: 120
-};
-
-const ball = {
-  x: 150,
-  y: 100,
-  radius: 8,
-  dx: 0,
-  dy: 5
-};
+const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
+const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
 
 const gapSize = 50;
 let punishmentShown = false;
@@ -103,12 +102,9 @@ function drawBall() {
 function drawGaps() {
   ctx.fillStyle = "lime";
   ctx.fillRect(0, 0, gapSize, 10); // Left
-  ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10); // Right
-
-  const wallStart = gapSize;
-  const wallEnd = canvas.width - gapSize;
+  ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10);
   ctx.fillStyle = "white";
-  ctx.fillRect(wallStart, 0, wallEnd - wallStart, 10);
+  ctx.fillRect(gapSize, 0, canvas.width - 2 * gapSize, 10);
 }
 
 function showMessage(text) {
@@ -116,7 +112,7 @@ function showMessage(text) {
 }
 
 function resetBall(message) {
-  showMessage(message + " ⏳");
+  showMessage(message);
   punishmentShown = true;
 
   setTimeout(() => {
@@ -132,16 +128,22 @@ function resetBall(message) {
 function getNextPlayer(direction) {
   const index = seatingOrder.indexOf(playerId);
   if (index === -1) return playerId;
-  let nextIndex;
-  if (direction === "left") {
-    nextIndex = (index - 1 + seatingOrder.length) % seatingOrder.length;
-  } else {
-    nextIndex = (index + 1) % seatingOrder.length;
-  }
+  const nextIndex = direction === "left"
+    ? (index - 1 + seatingOrder.length) % seatingOrder.length
+    : (index + 1) % seatingOrder.length;
   return seatingOrder[nextIndex];
 }
 
-function update() {
+function triggerNextTurn(direction, message) {
+  const nextPlayer = getNextPlayer(direction);
+  update(gameRef, {
+    currentPlayer: nextPlayer,
+    ballResetTime: Date.now()
+  });
+  resetBall(message);
+}
+
+function updateGame() {
   if (punishmentShown || !isCurrentPlayer) return;
 
   paddle.prevX = paddle.x;
@@ -159,13 +161,11 @@ function update() {
 
   if (ball.y - ball.radius <= 10) {
     if (ball.x > gapSize && ball.x < canvas.width - gapSize) {
-      ball.dy *= -1; // center wall
+      ball.dy *= -1;
     } else if (ball.x < gapSize) {
-      update(gameRef, { currentPlayer: getNextPlayer("left") });
-      resetBall("⬅️ Passed to the left!");
+      triggerNextTurn("left", "⬅️ Passed to the left!");
     } else if (ball.x > canvas.width - gapSize) {
-      update(gameRef, { currentPlayer: getNextPlayer("right") });
-      resetBall("➡️ Passed to the right!");
+      triggerNextTurn("right", "➡️ Passed to the right!");
     }
   }
 
@@ -183,8 +183,7 @@ function update() {
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    update(gameRef, { currentPlayer: getNextPlayer("right") });
-    resetBall("💥 You missed! Next player takes over!");
+    triggerNextTurn("right", "💥 You missed! Next player takes over!");
   }
 }
 
@@ -196,7 +195,7 @@ function draw() {
 }
 
 function loop() {
-  update();
+  updateGame();
   draw();
   requestAnimationFrame(loop);
 }
