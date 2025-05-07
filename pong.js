@@ -8,7 +8,7 @@ const ctx = canvas.getContext("2d");
 const msg = document.getElementById("message");
 
 const lobbyId = new URLSearchParams(window.location.search).get("code");
-const playerId = crypto.randomUUID();
+const playerId = localStorage.getItem("playerId");
 const gameRef = ref(db, `games/${lobbyId}`);
 const lobbyRef = ref(db, `lobbies/${lobbyId}`);
 

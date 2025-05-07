@@ -4,7 +4,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 let lobbyId = null;
-let localPlayerId = null;
+
+let localPlayerId = localStorage.getItem("playerId") || crypto.randomUUID();
+localStorage.setItem("playerId", localPlayerId);
+
 let isHost = false;
 let leftLobby = false;
 
@@ -25,7 +28,6 @@ function getQueryParam(name) {
 
 window.createLobby = async function () {
   lobbyId = generateCode();
-  localPlayerId = crypto.randomUUID();
   isHost = true;
 
   const players = {};
@@ -59,7 +61,6 @@ window.joinLobby = async function () {
   }
 
   lobbyId = code;
-  localPlayerId = crypto.randomUUID();
 
   await set(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
     name: "Player",
