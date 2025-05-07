@@ -151,6 +151,11 @@ function listenToLobby() {
     const seatEntries = Object.entries(seats);
     const totalSeats = seatEntries.length;
 
+    if (data.gameStarted && !window.location.href.includes("pong.html")) {
+      window.location.href = `pong.html?code=${lobbyId}`;
+      return; // stop further lobby logic
+    }
+
     const me = players[localPlayerId];
     if (!me) {
       if (!leftLobby) {
@@ -277,7 +282,7 @@ function listenToLobby() {
     startGameButton.onclick = () => {
       update(ref(db, `lobbies/${lobbyId}`), { gameStarted: true });
     };
-    
+
     
   });
 
@@ -304,9 +309,6 @@ function listenToLobby() {
 
       document.getElementById("qrModal").style.display = "block";
     };
-  }
-  if (data.gameStarted && !window.location.href.includes("pong.html")) {
-    window.location.href = `/DrinkingGames/pong.html?code=${lobbyId}`;
   }
   
 }
