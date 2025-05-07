@@ -275,8 +275,9 @@ function listenToLobby() {
     const allFilled = Object.values(seats).every(id => id !== 0 && id !== "0");
     startGameButton.style.display = isHost && allFilled ? "inline-block" : "none";
     startGameButton.onclick = () => {
-      window.location.href = `pong.html?code=${lobbyId}`;
+      update(ref(db, `lobbies/${lobbyId}`), { gameStarted: true });
     };
+    
     
   });
 
@@ -304,6 +305,10 @@ function listenToLobby() {
       document.getElementById("qrModal").style.display = "block";
     };
   }
+  if (data.gameStarted && !window.location.href.includes("pong.html")) {
+    window.location.href = `pong.html?code=${lobbyId}`;
+  }
+  
 }
 
 // ✅ Auto-join if lobby code is in URL
