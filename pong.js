@@ -16,7 +16,6 @@ let isCurrentPlayer = false;
 let seatingOrder = [];
 let seats = {};
 let players = {};
-
 let localResetTime = 0;
 
 function tryStartGame() {
@@ -87,6 +86,14 @@ canvas.addEventListener("mousemove", e => {
 document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keyPressed[e.key.toLowerCase()] = false);
 
+function updatePaddle() {
+  paddle.prevX = paddle.x;
+  const moveSpeed = 5;
+  if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
+  if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
+  paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
+}
+
 function drawPaddle() {
   ctx.fillStyle = "white";
   ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
@@ -115,13 +122,14 @@ function showMessage(text) {
 function resetBall(message) {
   showMessage(message);
   punishmentShown = true;
+
   setTimeout(() => {
     ball.x = 150;
     ball.y = 100;
     ball.dx = 0;
     ball.dy = isCurrentPlayer ? 5 : 0;
     punishmentShown = false;
-    showMessage("");
+    if (isCurrentPlayer) showMessage("");
   }, 5000);
 }
 
@@ -145,12 +153,6 @@ function triggerNextTurn(direction, message) {
 
 function updateGame() {
   if (punishmentShown || !isCurrentPlayer) return;
-
-  paddle.prevX = paddle.x;
-  const moveSpeed = 5;
-  if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
-  if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
-  paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 
   ball.x += ball.dx;
   ball.y += ball.dy;
@@ -178,14 +180,11 @@ function updateGame() {
   ) {
     ball.dy *= -1;
     ball.y = paddle.y - ball.radius;
-
-    // ✅ Affect ball direction based on paddle movement
     ball.dx += paddleMoved * 0.3;
     ball.dx = Math.max(-5, Math.min(5, ball.dx));
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    // ❌ Do not switch players
     resetBall("💥 You missed! Try again in 5 seconds!");
   }
 }
@@ -198,7 +197,8 @@ function draw() {
 }
 
 function loop() {
-  updateGame();
+  updatePaddle(); // always track paddle
+  if (isCurrentPlayer && !punishmentShown) updateGame();
   draw();
   requestAnimationFrame(loop);
 }
