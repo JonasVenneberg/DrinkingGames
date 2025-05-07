@@ -306,7 +306,7 @@ function listenToLobby() {
     };
   }
   if (data.gameStarted && !window.location.href.includes("pong.html")) {
-    window.location.href = `pong.html?code=${lobbyId}`;
+    window.location.href = `/DrinkingGames/pong.html?code=${lobbyId}`;
   }
   
 }
