@@ -19,6 +19,18 @@ let players = {};
 
 let localResetTime = 0;
 
+function tryStartGame() {
+  if (seatingOrder.length === 0) return;
+  get(gameRef).then(snap => {
+    if (!snap.exists()) {
+      set(gameRef, {
+        currentPlayer: seatingOrder[0],
+        ballResetTime: Date.now()
+      });
+    }
+  });
+}
+
 // Track who is in control
 onValue(gameRef, snapshot => {
   const data = snapshot.val();
@@ -26,7 +38,6 @@ onValue(gameRef, snapshot => {
 
   isCurrentPlayer = data.currentPlayer === playerId;
 
-  // Optional visual cue
   if (!isCurrentPlayer) {
     showMessage("⏳ Waiting for your turn...");
   }
@@ -40,6 +51,7 @@ onValue(gameRef, snapshot => {
 onValue(lobbyRef, snapshot => {
   const data = snapshot.val();
   if (!data) return;
+
   players = data.players || {};
   seats = data.seats || {};
 
@@ -48,19 +60,7 @@ onValue(lobbyRef, snapshot => {
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
     .map(([_, pid]) => pid);
 
-    const sortedSeats = Object.entries(data.seats || {})
-    .filter(([_, pid]) => pid && pid !== 0)
-    .sort(([a], [b]) => parseInt(a) - parseInt(b))
-    .map(([_, pid]) => pid);
-  
-  seatingOrder = sortedSeats;
-  
-  get(gameRef).then(snap => {
-    if (!snap.exists() && seatingOrder.length > 0) {
-      set(gameRef, { currentPlayer: seatingOrder[0] });
-    }
-  });
-  
+  tryStartGame();
 });
 
 // Paddle and ball setup
@@ -106,7 +106,7 @@ function drawBall() {
 
 function drawGaps() {
   ctx.fillStyle = "lime";
-  ctx.fillRect(0, 0, gapSize, 10); // Left
+  ctx.fillRect(0, 0, gapSize, 10);
   ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10);
   ctx.fillStyle = "white";
   ctx.fillRect(gapSize, 0, canvas.width - 2 * gapSize, 10);
@@ -119,7 +119,6 @@ function showMessage(text) {
 function resetBall(message) {
   showMessage(message);
   punishmentShown = true;
-
   setTimeout(() => {
     ball.x = 150;
     ball.y = 100;
