@@ -119,15 +119,17 @@ function showMessage(text) {
 function resetBall(message) {
   showMessage(message);
   punishmentShown = true;
+
   setTimeout(() => {
     ball.x = 150;
     ball.y = 100;
-    ball.dx = 0;
-    ball.dy = 5;
+    ball.dx = isCurrentPlayer ? 0 : 0;
+    ball.dy = isCurrentPlayer ? 5 : 0;
     punishmentShown = false;
     showMessage("");
   }, 5000);
 }
+
 
 function getNextPlayer(direction) {
   const index = seatingOrder.indexOf(playerId);
@@ -199,9 +201,20 @@ function draw() {
 }
 
 function loop() {
-  updateGame();
-  draw();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawGaps();
+  drawPaddle();
+
+  if (isCurrentPlayer) {
+    updateGame();
+    drawBall();
+  } else {
+    showMessage("⏳ Waiting for your turn...");
+  }
+
   requestAnimationFrame(loop);
 }
+
 
 loop();
