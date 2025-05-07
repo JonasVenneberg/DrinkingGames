@@ -31,7 +31,6 @@ function tryStartGame() {
   });
 }
 
-// Track who is in control
 onValue(gameRef, snapshot => {
   const data = snapshot.val();
   if (!data) return;
@@ -63,7 +62,6 @@ onValue(lobbyRef, snapshot => {
   tryStartGame();
 });
 
-// Paddle and ball setup
 const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
 const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
 
@@ -72,7 +70,6 @@ let punishmentShown = false;
 let keyPressed = {};
 
 canvas.addEventListener("touchmove", e => {
-  if (!isCurrentPlayer || punishmentShown) return;
   const touch = e.touches[0];
   const rect = canvas.getBoundingClientRect();
   const touchX = touch.clientX - rect.left;
@@ -81,7 +78,6 @@ canvas.addEventListener("touchmove", e => {
 });
 
 canvas.addEventListener("mousemove", e => {
-  if (!isCurrentPlayer || punishmentShown) return;
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   paddle.prevX = paddle.x;
@@ -119,17 +115,15 @@ function showMessage(text) {
 function resetBall(message) {
   showMessage(message);
   punishmentShown = true;
-
   setTimeout(() => {
     ball.x = 150;
     ball.y = 100;
-    ball.dx = isCurrentPlayer ? 0 : 0;
+    ball.dx = 0;
     ball.dy = isCurrentPlayer ? 5 : 0;
     punishmentShown = false;
     showMessage("");
   }, 5000);
 }
-
 
 function getNextPlayer(direction) {
   const index = seatingOrder.indexOf(playerId);
@@ -184,37 +178,29 @@ function updateGame() {
   ) {
     ball.dy *= -1;
     ball.y = paddle.y - ball.radius;
-    ball.dx += paddleMoved * 0.2;
+
+    // ✅ Affect ball direction based on paddle movement
+    ball.dx += paddleMoved * 0.3;
     ball.dx = Math.max(-5, Math.min(5, ball.dx));
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    triggerNextTurn("right", "💥 You missed! Next player takes over!");
+    // ❌ Do not switch players
+    resetBall("💥 You missed! Try again in 5 seconds!");
   }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawBall();
-  drawPaddle();
   drawGaps();
+  drawPaddle();
+  if (isCurrentPlayer) drawBall();
 }
 
 function loop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  drawGaps();
-  drawPaddle();
-
-  if (isCurrentPlayer) {
-    updateGame();
-    drawBall();
-  } else {
-    showMessage("⏳ Waiting for your turn...");
-  }
-
+  updateGame();
+  draw();
   requestAnimationFrame(loop);
 }
-
 
 loop();
