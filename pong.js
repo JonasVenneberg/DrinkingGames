@@ -48,14 +48,19 @@ onValue(lobbyRef, snapshot => {
     .sort(([a], [b]) => parseInt(a) - parseInt(b))
     .map(([_, pid]) => pid);
 
+    const sortedSeats = Object.entries(data.seats || {})
+    .filter(([_, pid]) => pid && pid !== 0)
+    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+    .map(([_, pid]) => pid);
+  
+  seatingOrder = sortedSeats;
+  
   get(gameRef).then(snap => {
-    if (!snap.exists()) {
-      const first = seatingOrder[0];
-      if (first) {
-        set(gameRef, { currentPlayer: first });
-      }
+    if (!snap.exists() && seatingOrder.length > 0) {
+      set(gameRef, { currentPlayer: seatingOrder[0] });
     }
   });
+  
 });
 
 // Paddle and ball setup
