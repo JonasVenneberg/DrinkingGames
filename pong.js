@@ -17,6 +17,7 @@ let seatingOrder = [];
 let seats = {};
 let players = {};
 let localResetTime = 0;
+let currentPlayerId = null;
 
 function tryStartGame() {
   if (seatingOrder.length === 0) return;
@@ -34,15 +35,19 @@ onValue(gameRef, snapshot => {
   const data = snapshot.val();
   if (!data) return;
 
-  isCurrentPlayer = data.currentPlayer === playerId;
+  currentPlayerId = data.currentPlayer;
+  isCurrentPlayer = currentPlayerId === playerId;
 
-  if (!isCurrentPlayer) {
-    showMessage("⏳ Waiting for your turn...");
+  const name = players[currentPlayerId]?.name || "Another player";
+  if (isCurrentPlayer) {
+    showMessage("🎯 Your turn!");
+  } else {
+    showMessage(`⏳ ${name} is playing...`);
   }
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
     localResetTime = data.ballResetTime;
-    resetBall("🎯 Your turn!");
+    resetBall();
   }
 });
 
@@ -124,8 +129,7 @@ function showMessage(text) {
   msg.textContent = text;
 }
 
-function resetBall(message) {
-  showMessage(message);
+function resetBall() {
   punishmentShown = true;
   setTimeout(() => {
     ball.x = 150;
@@ -133,7 +137,6 @@ function resetBall(message) {
     ball.dx = 0;
     ball.dy = isCurrentPlayer ? 5 : 0;
     punishmentShown = false;
-    if (isCurrentPlayer) showMessage("");
   }, 5000);
 }
 
@@ -141,8 +144,8 @@ function getNextPlayer(direction) {
   const index = seatingOrder.indexOf(playerId);
   if (index === -1) return playerId;
   const nextIndex = direction === "left"
-    ? (index - 1 + seatingOrder.length) % seatingOrder.length
-    : (index + 1) % seatingOrder.length;
+    ? (index + 1 + seatingOrder.length) % seatingOrder.length
+    : (index - 1 + seatingOrder.length) % seatingOrder.length;
   return seatingOrder[nextIndex];
 }
 
@@ -152,7 +155,8 @@ function triggerNextTurn(direction, message) {
     currentPlayer: nextPlayer,
     ballResetTime: Date.now()
   });
-  resetBall(message);
+  showMessage(message);
+  resetBall();
 }
 
 function updateGame() {
@@ -189,7 +193,8 @@ function updateGame() {
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    resetBall("💥 You missed! Try again in 5 seconds!");
+    showMessage("💥 You missed! Try again in 5 seconds!");
+    resetBall();
   }
 }
 
