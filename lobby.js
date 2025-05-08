@@ -153,9 +153,16 @@ function listenToLobby() {
     const totalSeats = seatEntries.length;
 
     if (data.gameStarted && !window.location.href.includes("pong.html")) {
-      window.location.href = `pong.html?code=${lobbyId}`;
-      return; // stop further lobby logic
+      const gameSnap = await get(ref(db, `games/${lobbyId}`));
+      const gameData = gameSnap.exists() ? gameSnap.val() : null;
+      const isGameOver = gameData?.gameOver === true;
+    
+      if (!isGameOver) {
+        window.location.href = `pong.html?code=${lobbyId}`;
+        return;
+      }
     }
+    
 
     const me = players[localPlayerId];
     if (!me) {

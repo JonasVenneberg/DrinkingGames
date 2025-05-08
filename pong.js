@@ -73,6 +73,18 @@ onValue(gameRef, snapshot => {
   isCurrentPlayer = currentPlayerId === playerId;
   if (data.startTime) startTime = data.startTime;
 
+  // NEW: Handle global game over
+  if (data.gameOver && !gameOver) {
+    gameOver = true;
+    returnBtn.style.display = "block";
+    if (currentPlayerId === playerId) {
+      showMessage("💀 Time's up! You lost the game!");
+    } else {
+      const name = players[currentPlayerId]?.name || "Someone";
+      showMessage(`🎉 ${name} lost the game!`);
+    }
+  }
+
   updateStatusMessage();
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
@@ -213,6 +225,8 @@ function triggerNextTurn(direction, passMessage) {
 
 function endGame() {
   gameOver = true;
+  update(gameRef, { gameOver: true }); // Broadcast to all players
+
   returnBtn.style.display = "block";
   if (isCurrentPlayer) {
     showMessage("💀 Time's up! You lost the game!");
@@ -285,3 +299,19 @@ returnBtn.onclick = () => {
 };
 
 loop();
+
+// ✅ PRESENCE TRACKING
+import { onDisconnect } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+const presenceRef = ref(db, `games/${lobbyId}/presence/${playerId}`);
+set(presenceRef, true);
+onDisconnect(presenceRef).remove();
+
+// ✅ CLEANUP IF NO PLAYERS REMAIN
+const presenceRootRef = ref(db, `games/${lobbyId}/presence`);
+onValue(presenceRootRef, snap => {
+  const activePlayers = snap.exists() ? Object.keys(snap.val()) : [];
+  if (activePlayers.length === 0) {
+    set(gameRef, null); // delete entire game data when empty
+  }
+});
