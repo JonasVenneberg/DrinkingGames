@@ -142,10 +142,14 @@ function drawGaps() {
 }
 
 function resetBall(state = null) {
-  punishmentShown = true;
-  setTimeout(() => {
+  const isPass = !!state;
+  if (!isPass) punishmentShown = true;
+
+  const apply = () => {
     if (state && isCurrentPlayer) {
-      ball.x = state.entrySide === "left" ? gapSize / 2 : canvas.width - gapSize / 2;
+      ball.x = state.entrySide === "left"
+        ? canvas.width - gapSize / 2
+        : gapSize / 2;
       ball.y = 20;
       ball.dx = state.dx || 0;
       ball.dy = 5;
@@ -156,7 +160,13 @@ function resetBall(state = null) {
       ball.dy = isCurrentPlayer ? 5 : 0;
     }
     punishmentShown = false;
-  }, 5000);
+  };
+
+  if (isPass) {
+    apply();
+  } else {
+    setTimeout(apply, 5000);
+  }
 }
 
 function getNextPlayer(direction) {
