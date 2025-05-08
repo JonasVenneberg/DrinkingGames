@@ -55,19 +55,17 @@ function updateStatusMessage() {
   }
 }
 
-
 onValue(gameRef, snapshot => {
   const data = snapshot.val();
   if (!data) return;
 
   currentPlayerId = data.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
-
   updateStatusMessage();
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
     localResetTime = data.ballResetTime;
-    resetBall();
+    resetBall(data.ballState || null);
   }
 });
 
@@ -143,13 +141,20 @@ function drawGaps() {
   ctx.fillRect(gapSize, 0, canvas.width - 2 * gapSize, 10);
 }
 
-function resetBall() {
+function resetBall(state = null) {
   punishmentShown = true;
   setTimeout(() => {
-    ball.x = 150;
-    ball.y = 100;
-    ball.dx = 0;
-    ball.dy = isCurrentPlayer ? 5 : 0;
+    if (state && isCurrentPlayer) {
+      ball.x = state.entrySide === "left" ? gapSize / 2 : canvas.width - gapSize / 2;
+      ball.y = 20;
+      ball.dx = state.dx || 0;
+      ball.dy = 5;
+    } else {
+      ball.x = 150;
+      ball.y = 100;
+      ball.dx = 0;
+      ball.dy = isCurrentPlayer ? 5 : 0;
+    }
     punishmentShown = false;
   }, 5000);
 }
@@ -165,13 +170,20 @@ function getNextPlayer(direction) {
 
 function triggerNextTurn(direction, passMessage) {
   const nextPlayer = getNextPlayer(direction);
+  const fallback = `⏳ ${players[nextPlayer]?.name || "A player"} is playing...`;
+
+  setTemporaryMessage(passMessage, fallback);
+
   update(gameRef, {
     currentPlayer: nextPlayer,
-    ballResetTime: Date.now()
+    ballResetTime: Date.now(),
+    ballState: {
+      x: ball.x,
+      dx: ball.dx,
+      entrySide: direction
+    }
   });
 
-  const fallback = `⏳ ${players[nextPlayer]?.name || "A player"} is playing...`;
-  setTemporaryMessage(passMessage, fallback);
   resetBall();
 }
 
