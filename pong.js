@@ -44,13 +44,7 @@ function tryStartGame() {
   });
 }
 
-onValue(gameRef, snapshot => {
-  const data = snapshot.val();
-  if (!data) return;
-
-  currentPlayerId = data.currentPlayer;
-  isCurrentPlayer = currentPlayerId === playerId;
-
+function updateStatusMessage() {
   const name = players[currentPlayerId]?.name;
   if (isCurrentPlayer) {
     showMessage("🎯 Your turn!");
@@ -59,6 +53,17 @@ onValue(gameRef, snapshot => {
   } else {
     showMessage("⏳ A player is playing...");
   }
+}
+
+
+onValue(gameRef, snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
+
+  currentPlayerId = data.currentPlayer;
+  isCurrentPlayer = currentPlayerId === playerId;
+
+  updateStatusMessage();
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
     localResetTime = data.ballResetTime;
@@ -79,6 +84,7 @@ onValue(lobbyRef, snapshot => {
     .map(([_, pid]) => pid);
 
   tryStartGame();
+  updateStatusMessage();
 });
 
 const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
@@ -203,7 +209,7 @@ function updateGame() {
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    setTemporaryMessage("💥 You missed! Try again in 5 seconds!", `⏳ ${players[playerId]?.name || "You"} are playing...`);
+    setTemporaryMessage("💥 You missed! Try again in 5 seconds!", "🎯 Your turn!");
     resetBall();
   }
 }
