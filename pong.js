@@ -18,7 +18,11 @@ let seatingOrder = [];
 let seats = {};
 let players = {};
 let localResetTime = 0;
+let startTime = null;
+let gameOver = false;
 let messageTimeout;
+
+const returnBtn = document.getElementById("returnBtn");
 
 function showMessage(text) {
   msg.textContent = text;
@@ -36,16 +40,22 @@ function tryStartGame() {
   if (seatingOrder.length === 0) return;
   get(gameRef).then(snap => {
     if (!snap.exists()) {
+      const now = Date.now();
+      startTime = now;
       set(gameRef, {
         currentPlayer: seatingOrder[0],
-        ballResetTime: Date.now()
+        ballResetTime: now,
+        startTime: now
       });
+    } else {
+      if (snap.val().startTime) startTime = snap.val().startTime;
     }
   });
 }
 
 function updateStatusMessage() {
   const name = players[currentPlayerId]?.name;
+  if (gameOver) return;
   if (isCurrentPlayer) {
     showMessage("🎯 Your turn!");
   } else if (name) {
@@ -61,6 +71,8 @@ onValue(gameRef, snapshot => {
 
   currentPlayerId = data.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
+  if (data.startTime) startTime = data.startTime;
+
   updateStatusMessage();
 
   if (data.ballResetTime && data.ballResetTime !== localResetTime) {
@@ -107,6 +119,7 @@ canvas.addEventListener("touchmove", e => {
 });
 
 function updatePaddle() {
+  if (gameOver) return;
   paddle.prevX = paddle.x;
   const moveSpeed = 5;
 
@@ -184,9 +197,10 @@ function triggerNextTurn(direction, passMessage) {
 
   setTemporaryMessage(passMessage, fallback);
 
+  localResetTime = Date.now();
   update(gameRef, {
     currentPlayer: nextPlayer,
-    ballResetTime: Date.now(),
+    ballResetTime: localResetTime,
     ballState: {
       x: ball.x,
       dx: ball.dx,
@@ -197,8 +211,24 @@ function triggerNextTurn(direction, passMessage) {
   resetBall();
 }
 
+function endGame() {
+  gameOver = true;
+  returnBtn.style.display = "block";
+  if (isCurrentPlayer) {
+    showMessage("💀 Time's up! You lost the game!");
+  } else {
+    const name = players[currentPlayerId]?.name || "Someone";
+    showMessage(`🎉 ${name} lost the game!`);
+  }
+}
+
 function updateGame() {
-  if (punishmentShown || !isCurrentPlayer) return;
+  if (gameOver || punishmentShown || !isCurrentPlayer) return;
+
+  if (startTime && Date.now() - startTime >= 60000) {
+    endGame();
+    return;
+  }
 
   ball.x += ball.dx;
   ball.y += ball.dy;
@@ -249,5 +279,9 @@ function loop() {
   draw();
   requestAnimationFrame(loop);
 }
+
+returnBtn.onclick = () => {
+  window.location.href = `lobby.html?code=${lobbyId}`;
+};
 
 loop();
