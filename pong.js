@@ -42,7 +42,7 @@ function tryStartGame() {
     if (!snap.exists()) {
       const now = Date.now();
       startTime = now;
-      update(gameRef, {
+      set(gameRef, {
         currentPlayer: seatingOrder[0],
         ballResetTime: now,
         startTime: now
@@ -304,7 +304,10 @@ loop();
 import { onDisconnect } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 const presenceRef = ref(db, `games/${lobbyId}/presence/${playerId}`);
-set(presenceRef, true);
+update(ref(db, `games/${lobbyId}`), {
+  [`presence/${playerId}`]: true
+});
+
 onDisconnect(presenceRef).remove();
 
 // ✅ CLEANUP IF NO PLAYERS REMAIN
