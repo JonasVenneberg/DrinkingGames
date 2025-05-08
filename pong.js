@@ -42,7 +42,7 @@ function tryStartGame() {
     if (!snap.exists()) {
       const now = Date.now();
       startTime = now;
-      set(gameRef, {
+      update(gameRef, {
         currentPlayer: seatingOrder[0],
         ballResetTime: now,
         startTime: now
