@@ -187,16 +187,14 @@ function listenToLobby() {
     const seats   = data.seats   || {};
 
     /* auto‑redirect to game ONLY if this player hasn't pressed Return */
-    if (
-      data.gameStarted &&
-      !(players[localPlayerId]?.done)   // ← NEW condition
-    ) {
+    if (data.gameStarted && !(data.players?.[localPlayerId]?.done)) {
       const gameSnap = await get(ref(db, `games/${lobbyId}`));
       if (!gameSnap.exists() || gameSnap.val().gameOver !== true) {
         window.location.href = `pong.html?code=${lobbyId}`;
         return;
       }
     }
+
 
     /* kicked? */
     if (!players[localPlayerId]) {
@@ -343,8 +341,13 @@ function renderButtons(data, seats) {
   startGameButton.style.display = canStart ? "inline-block" : "none";
   startGameButton.disabled      = !canStart;
   if (canStart) {
-    startGameButton.onclick = () =>
-      update(ref(db, `lobbies/${lobbyId}`), { gameStarted: true });
+    startGameButton.onclick = async () => {
+      const updates = { gameStarted: true };
+      Object.keys(players).forEach(pid => {
+        updates[`players/${pid}/done`] = null;
+      });
+      await update(ref(db, `lobbies/${lobbyId}`), updates);
+    };
   }
 }
 
