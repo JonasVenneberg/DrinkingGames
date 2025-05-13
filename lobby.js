@@ -205,7 +205,7 @@ function listenToLobby() {
 
     renderTable(players, seats);
     renderUnseated(players, seats);
-    renderButtons(data, seats);
+    renderButtons(data, seats, players);
   });
 
   initShareButton();
@@ -300,7 +300,7 @@ function renderUnseated(players, seats) {
 }
 
 /* ─── buttons (unseat, leave, start) ─────────────────────────────────── */
-function renderButtons(data, seats) {
+function renderButtons(data, seats, players) {
   /* unseat yourself */
   const unseatBtn = document.getElementById("unseatButton");
   if (unseatBtn) {
