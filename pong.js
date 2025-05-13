@@ -1,12 +1,15 @@
 import { db } from './firebase-config.js';
 import {
-  ref, get, set, update, onValue
+  ref, get, set, update, onValue, onDisconnect, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const msg = document.getElementById("message");
+const returnBtn = document.getElementById("returnBtn");
 
+const ROUND_MS = 60000;
+const PUNISHMENT_MS = 5000;
 const lobbyId = new URLSearchParams(window.location.search).get("code");
 const playerId = localStorage.getItem("playerId");
 const gameRef = ref(db, `games/${lobbyId}`);
@@ -15,41 +18,58 @@ const lobbyRef = ref(db, `lobbies/${lobbyId}`);
 let isCurrentPlayer = false;
 let currentPlayerId = null;
 let seatingOrder = [];
-let seats = {};
 let players = {};
-let localResetTime = 0;
+let seats = {};
 let startTime = null;
 let gameOver = false;
+let localResetTime = 0;
 let messageTimeout;
+let punishmentShown = false;
 
-const returnBtn = document.getElementById("returnBtn");
+const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
+const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
+const gapSize = 50;
+let keyPressed = {};
+let lastInputX = null;
 
+// 🎯 Setup presence tracking
+const presenceRef = ref(db, `games/${lobbyId}/presence/${playerId}`);
+set(presenceRef, true);
+onDisconnect(presenceRef).remove();
+
+// 🧹 Auto-cleanup game when no players remain
+const presenceRootRef = ref(db, `games/${lobbyId}/presence`);
+onValue(presenceRootRef, snap => {
+  const activePlayers = snap.exists() ? Object.keys(snap.val()) : [];
+  if (activePlayers.length === 0) {
+    set(gameRef, null); // safely delete game
+  }
+});
+
+// 🎯 Message handling
 function showMessage(text) {
   msg.textContent = text;
 }
-
 function setTemporaryMessage(text, fallback) {
   clearTimeout(messageTimeout);
   showMessage(text);
-  messageTimeout = setTimeout(() => {
-    showMessage(fallback);
-  }, 2500);
+  messageTimeout = setTimeout(() => showMessage(fallback), 2500);
 }
 
+// 🟢 Game setup
 function tryStartGame() {
   if (seatingOrder.length === 0) return;
-  get(gameRef).then(snap => {
-    if (!snap.exists()) {
+  runTransaction(gameRef, current => {
+    if (current === null) {
       const now = Date.now();
       startTime = now;
-      set(gameRef, {
+      return {
         currentPlayer: seatingOrder[0],
         ballResetTime: now,
         startTime: now
-      });
-    } else {
-      if (snap.val().startTime) startTime = snap.val().startTime;
+      };
     }
+    return; // don’t overwrite
   });
 }
 
@@ -65,19 +85,17 @@ function updateStatusMessage() {
   }
 }
 
-onValue(gameRef, snapshot => {
-  const data = snapshot.val();
+onValue(gameRef, snap => {
+  const data = snap.val();
   if (!data) return;
-
   currentPlayerId = data.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
   if (data.startTime) startTime = data.startTime;
 
-  // NEW: Handle global game over
   if (data.gameOver && !gameOver) {
     gameOver = true;
     returnBtn.style.display = "block";
-    if (currentPlayerId === playerId) {
+    if (isCurrentPlayer) {
       showMessage("💀 Time's up! You lost the game!");
     } else {
       const name = players[currentPlayerId]?.name || "Someone";
@@ -93,10 +111,9 @@ onValue(gameRef, snapshot => {
   }
 });
 
-onValue(lobbyRef, snapshot => {
-  const data = snapshot.val();
+onValue(lobbyRef, snap => {
+  const data = snap.val();
   if (!data) return;
-
   players = data.players || {};
   seats = data.seats || {};
 
@@ -109,17 +126,9 @@ onValue(lobbyRef, snapshot => {
   updateStatusMessage();
 });
 
-const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
-const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
-
-const gapSize = 50;
-let punishmentShown = false;
-let keyPressed = {};
-let lastInputX = null;
-
+// 🕹 Controls
 document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keyPressed[e.key.toLowerCase()] = false);
-
 canvas.addEventListener("mousemove", e => {
   const rect = canvas.getBoundingClientRect();
   lastInputX = e.clientX - rect.left;
@@ -133,15 +142,10 @@ canvas.addEventListener("touchmove", e => {
 function updatePaddle() {
   if (gameOver) return;
   paddle.prevX = paddle.x;
-  const moveSpeed = 5;
-
-  if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= moveSpeed;
-  if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += moveSpeed;
-
-  if (lastInputX !== null) {
-    paddle.x = lastInputX - paddle.width / 2;
-  }
-
+  const speed = 5;
+  if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= speed;
+  if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += speed;
+  if (lastInputX !== null) paddle.x = lastInputX - paddle.width / 2;
   paddle.x = Math.max(0, Math.min(paddle.x, canvas.width - paddle.width));
 }
 
@@ -149,7 +153,6 @@ function drawPaddle() {
   ctx.fillStyle = "white";
   ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
 }
-
 function drawBall() {
   ctx.beginPath();
   ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
@@ -157,7 +160,6 @@ function drawBall() {
   ctx.fill();
   ctx.closePath();
 }
-
 function drawGaps() {
   ctx.fillStyle = "lime";
   ctx.fillRect(0, 0, gapSize, 10);
@@ -172,9 +174,7 @@ function resetBall(state = null) {
 
   const apply = () => {
     if (state && isCurrentPlayer) {
-      ball.x = state.entrySide === "left"
-        ? canvas.width - gapSize / 2
-        : gapSize / 2;
+      ball.x = state.entrySide === "left" ? canvas.width - gapSize / 2 : gapSize / 2;
       ball.y = 20;
       ball.dx = state.dx || 0;
       ball.dy = 5;
@@ -187,11 +187,7 @@ function resetBall(state = null) {
     punishmentShown = false;
   };
 
-  if (isPass) {
-    apply();
-  } else {
-    setTimeout(apply, 5000);
-  }
+  isPass ? apply() : setTimeout(apply, PUNISHMENT_MS);
 }
 
 function getNextPlayer(direction) {
@@ -205,11 +201,13 @@ function getNextPlayer(direction) {
 
 function triggerNextTurn(direction, passMessage) {
   const nextPlayer = getNextPlayer(direction);
-  const fallback = `⏳ ${players[nextPlayer]?.name || "A player"} is playing...`;
+  const fallback = players[nextPlayer]?.name
+    ? `⏳ ${players[nextPlayer].name} is playing...`
+    : "⏳ A player is playing...";
 
   setTemporaryMessage(passMessage, fallback);
-
   localResetTime = Date.now();
+
   update(gameRef, {
     currentPlayer: nextPlayer,
     ballResetTime: localResetTime,
@@ -225,8 +223,7 @@ function triggerNextTurn(direction, passMessage) {
 
 function endGame() {
   gameOver = true;
-  update(gameRef, { gameOver: true }); // Broadcast to all players
-
+  update(gameRef, { gameOver: true });
   returnBtn.style.display = "block";
   if (isCurrentPlayer) {
     showMessage("💀 Time's up! You lost the game!");
@@ -238,8 +235,7 @@ function endGame() {
 
 function updateGame() {
   if (gameOver || punishmentShown || !isCurrentPlayer) return;
-
-  if (startTime && Date.now() - startTime >= 60000) {
+  if (startTime && Date.now() - startTime >= ROUND_MS) {
     endGame();
     return;
   }
@@ -247,9 +243,7 @@ function updateGame() {
   ball.x += ball.dx;
   ball.y += ball.dy;
 
-  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
-    ball.dx *= -1;
-  }
+  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) ball.dx *= -1;
 
   if (ball.y - ball.radius <= 10) {
     if (ball.x > gapSize && ball.x < canvas.width - gapSize) {
@@ -275,7 +269,7 @@ function updateGame() {
   }
 
   if (ball.y - ball.radius > canvas.height) {
-    setTemporaryMessage("💥 You missed! Try again in 5 seconds!", "🎯 Your turn!");
+    setTemporaryMessage("💥 You missed! Try again soon!", "🎯 Your turn!");
     resetBall();
   }
 }
@@ -299,22 +293,3 @@ returnBtn.onclick = () => {
 };
 
 loop();
-
-// ✅ PRESENCE TRACKING
-import { onDisconnect } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
-
-const presenceRef = ref(db, `games/${lobbyId}/presence/${playerId}`);
-update(ref(db, `games/${lobbyId}`), {
-  [`presence/${playerId}`]: true
-});
-
-onDisconnect(presenceRef).remove();
-
-// ✅ CLEANUP IF NO PLAYERS REMAIN
-const presenceRootRef = ref(db, `games/${lobbyId}/presence`);
-onValue(presenceRootRef, snap => {
-  const activePlayers = snap.exists() ? Object.keys(snap.val()) : [];
-  if (activePlayers.length === 0) {
-    set(gameRef, null); // delete entire game data when empty
-  }
-});
