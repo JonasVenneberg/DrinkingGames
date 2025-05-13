@@ -1,152 +1,387 @@
+/**************************************************************************
+ *  lobby.js – multiplayer lobby for the Drinking Games project
+ *  – preserves player names
+ *  – prevents premature restarts
+ *  – publishes presence from the lobby page, too
+ **************************************************************************/
+
 import { db } from "./firebase-config.js";
 import {
   ref, set, get, update, onValue, remove, onDisconnect
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-/* ─── persistent identity ─────────────────────────── */
-const localPlayerId = localStorage.getItem("playerId") || crypto.randomUUID();
+/* ─── persistent ID for this browser ──────────────────────────────────── */
+const localPlayerId =
+  localStorage.getItem("playerId") || crypto.randomUUID();
 localStorage.setItem("playerId", localPlayerId);
 
-/* ─── DOM handles ─────────────────────────────────── */
+/* ─── UI handles ──────────────────────────────────────────────────────── */
 const lobbyCodeInput  = document.getElementById("lobbyCodeInput");
 const tableDiv        = document.getElementById("table");
 const unseatedDiv     = document.getElementById("unseatedPlayers");
 const hostControls    = document.getElementById("hostControls");
 const startGameButton = document.getElementById("startGameButton");
-const leaveBtn        = document.getElementById("leaveLobbyButton");
 
-/* ─── globals ─────────────────────────────────────── */
-let lobbyId  = null;
-let isHost   = false;
+/* ─── globals ─────────────────────────────────────────────────────────── */
+let lobbyId   = null;
+let isHost    = false;
 let leftLobby = false;
+let presenceRef;
 
-/* ─── helpers ─────────────────────────────────────── */
-const generateCode = () => Math.random().toString(36).slice(2,8).toUpperCase();
-const serverNow    = () => Date.now();  // lobby does not need strict sync
+/* ─── helpers ─────────────────────────────────────────────────────────── */
+const generateCode = () =>
+  Math.random().toString(36).slice(2, 8).toUpperCase();
 
-function addPresence(){
-  const pres = ref(db, `presence/${lobbyId}/${localPlayerId}`);
-  set(pres,true); onDisconnect(pres).remove();
+function getQueryParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
 }
 
-/* ─── create / join ───────────────────────────────── */
-window.createLobby = async function(){
-  lobbyId = generateCode(); isHost = true;
+/* ─── presence handling ──────────────────────────────────────────────── */
+function initPresence() {
+  if (!lobbyId) return;
+  presenceRef = ref(db, `presence/${lobbyId}/${localPlayerId}`);
+  set(presenceRef, true);
+  onDisconnect(presenceRef).remove();
+}
 
-  const players = { [localPlayerId]: { name:"Host", joinedAt:serverNow(), seat:null }};
-  const seats = {}; for(let i=1;i<=5;i++) seats[i]=0;
+/* ─── lobby creation / join ──────────────────────────────────────────── */
+window.createLobby = async function () {
+  lobbyId = generateCode();
+  isHost  = true;
+
+  const players = {
+    [localPlayerId]: { name: "Host", joinedAt: Date.now(), seat: null }
+  };
+
+  const seats = {};
+  for (let i = 1; i <= 5; i++) seats[i] = 0;
 
   await set(ref(db, `lobbies/${lobbyId}`), {
-    hostId: localPlayerId, players, seats, gameStarted:false
+    hostId: localPlayerId,
+    players,
+    seats,
+    gameStarted: false
   });
 
-  addPresence(); enterUI(); listen();
+  initPresence();
+  enterLobbyUI();
+  listenToLobby();
 };
 
-window.joinLobby = async function(){
+window.joinLobby = async function () {
   const code = lobbyCodeInput.value.trim().toUpperCase();
-  if(!code) return;
+  if (!code) return;
+
   const lobbySnap = await get(ref(db, `lobbies/${code}`));
-  if(!lobbySnap.exists()){ alert("Lobby not found"); return; }
-
-  lobbyId = code; const data = lobbySnap.val(); isHost = data.hostId === localPlayerId;
-
-  if(!data.players?.[localPlayerId]){
-    await set(ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`), {
-      name:"Player", joinedAt:serverNow(), seat:null
-    });
+  if (!lobbySnap.exists()) {
+    alert("Lobby not found.");
+    return;
   }
-  addPresence(); enterUI(); listen();
+
+  lobbyId = code;
+  const data = lobbySnap.val();
+  isHost = data.hostId === localPlayerId;
+
+  /* keep existing name if we already have a record */
+  if (!data.players?.[localPlayerId]) {
+    await set(
+      ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`),
+      { name: "Player", joinedAt: Date.now(), seat: null }
+    );
+  }
+
+  initPresence();
+  enterLobbyUI();
+  listenToLobby();
 };
 
-/* ─── UI setup ────────────────────────────────────── */
-function enterUI(){
-  document.getElementById("createJoin").style.display="none";
-  document.getElementById("lobbyView").style.display="block";
+/* ─── host / player name edits ───────────────────────────────────────── */
+window.saveNewName = async function () {
+  const input = document.getElementById("nameChangeInput");
+  const newName = input.value.trim();
+  if (newName) {
+    await update(
+      ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`),
+      { name: newName }
+    );
+  }
+};
+
+window.updateHostName = async function () {
+  const newName = document.getElementById("hostNameInput").value.trim();
+  if (newName) {
+    await update(
+      ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`),
+      { name: newName }
+    );
+  }
+};
+
+/* ─── seat‑count change (host‑only) ──────────────────────────────────── */
+window.updateSeatCount = async function () {
+  const input = document.getElementById("seatCountInput");
+  const newCount = parseInt(input.value, 10);
+  if (isNaN(newCount) || newCount < 1 || newCount > 12) return;
+
+  const seatsRef = ref(db, `lobbies/${lobbyId}/seats`);
+  const snap     = await get(seatsRef);
+  const current  = snap.val() || {};
+
+  const updates = {};
+
+  /* add new seats */
+  for (let i = 1; i <= newCount; i++) {
+    if (!(i in current)) updates[`seats/${i}`] = 0;
+  }
+
+  /* remove extra seats & unseat players sitting there */
+  for (let i = newCount + 1; i <= Object.keys(current).length; i++) {
+    if (current[i] !== 0) {
+      const pid = current[i];
+      await update(
+        ref(db, `lobbies/${lobbyId}/players/${pid}`),
+        { seat: null }
+      );
+    }
+    updates[`seats/${i}`] = null;
+  }
+
+  await update(ref(db, `lobbies/${lobbyId}`), updates);
+};
+
+/* ─── enter the lobby UI ─────────────────────────────────────────────── */
+function enterLobbyUI() {
+  document.getElementById("createJoin").style.display = "none";
+  document.getElementById("lobbyView").style.display  = "block";
   document.getElementById("lobbyCodeDisplay").textContent = lobbyId;
 
-  leaveBtn.onclick = async ()=>{
-    leftLobby=true;
-    await remove(ref(db,`lobbies/${lobbyId}/players/${localPlayerId}`));
-    location.reload();
-  };
+  if (isHost) {
+    hostControls.innerHTML = `
+      <label>Edit name: <input id="hostNameInput" /></label>
+      <button onclick="updateHostName()">Save</button><br>
+      <label>Seat count: <input id="seatCountInput" type="number" min="1" max="12" value="5" /></label>
+      <button onclick="updateSeatCount()">Apply</button><br>
+      <button id="closeLobbyButton">Close Lobby</button>
+    `;
+    document.getElementById("closeLobbyButton").onclick = async () => {
+      await remove(ref(db, `lobbies/${lobbyId}`));
+      location.reload();
+    };
+  } else {
+    hostControls.innerHTML = `
+      <label>Choose your name: <input id="nameChangeInput" /></label>
+      <button onclick="saveNewName()">Save</button>
+    `;
+  }
 }
 
-/* ─── realtime listener ──────────────────────────── */
-function listen(){
+/* ─── main realtime listener ─────────────────────────────────────────── */
+function listenToLobby() {
   const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-  onValue(lobbyRef, async snap=>{
-    const d = snap.val(); if(!d) { location.reload(); return; }
 
-    const players = d.players || {};
-    const seats   = d.seats || {};
+  onValue(lobbyRef, async snap => {
+    const data = snap.val();
+    if (!data) { location.reload(); return; }
 
-    /* redirect into game ONLY if this player hasn't pressed Return */
-    if(d.gameStarted && !players[localPlayerId]?.done){
-      window.location.href = `pong.html?code=${lobbyId}`; return;
+    const players = data.players || {};
+    const seats   = data.seats   || {};
+
+    /* auto‑redirect to game ONLY if this player hasn't pressed Return */
+    if (
+      data.gameStarted &&
+      !(players[localPlayerId]?.done)   // ← NEW condition
+    ) {
+      const gameSnap = await get(ref(db, `games/${lobbyId}`));
+      if (!gameSnap.exists() || gameSnap.val().gameOver !== true) {
+        window.location.href = `pong.html?code=${lobbyId}`;
+        return;
+      }
     }
 
     /* kicked? */
-    if(!players[localPlayerId] && !leftLobby){
-      alert("You were removed from the lobby."); location.reload(); return;
+    if (!players[localPlayerId]) {
+      if (!leftLobby) alert("You have been removed from the lobby.");
+      location.reload();
+      return;
     }
 
-    renderTable(players,seats);
-    renderUnseated(players,seats);
-    renderButtons(d,seats);
+    renderTable(players, seats);
+    renderUnseated(players, seats);
+    renderButtons(data, seats);
   });
+
+  initShareButton();
 }
 
-/* ─── seat/table rendering (unchanged except condensed) ──────────────── */
-function renderTable(players,seats){
-  tableDiv.innerHTML="";
-  const entries=Object.entries(seats); const n=entries.length;
-  const R=120,CX=140,CY=140;
-  entries.forEach(([num,pid],i)=>{
-    const a=i/n*2*Math.PI; const x=CX+R*Math.cos(a); const y=CY+R*Math.sin(a);
-    const div=document.createElement("div"); div.className="seat";
-    div.style.left=`${x}px`; div.style.top=`${y}px`; div.dataset.seat=num;
+/* ─── table / seating ────────────────────────────────────────────────── */
+function renderTable(players, seats) {
+  tableDiv.innerHTML = "";
 
-    if(String(pid)!=="0"){
-      div.textContent=players[pid]?.name||"Taken"; div.classList.add("taken");
-      if(pid===localPlayerId) div.classList.add("self");
-      if(isHost){ div.style.cursor="pointer";
-        div.onclick=async()=>{ await update(ref(db,`lobbies/${lobbyId}`),{[`seats/${num}`]:0});
-          await update(ref(db,`lobbies/${lobbyId}/players/${pid}`), { seat:null, blockedUntil:serverNow()+3000 }); };
+  const entries = Object.entries(seats);
+  const total   = entries.length;
+  const R       = 120;
+  const CX      = 140;
+  const CY      = 140;
+
+  entries.forEach(([seatNum, pid], idx) => {
+    const angle = (idx / total) * 2 * Math.PI;
+    const x     = CX + R * Math.cos(angle);
+    const y     = CY + R * Math.sin(angle);
+
+    const seat = document.createElement("div");
+    seat.className = "seat";
+    seat.style.left = `${x}px`;
+    seat.style.top  = `${y}px`;
+    seat.dataset.seat = seatNum;
+
+    if (String(pid) !== "0") {
+      const player = players[pid];
+      seat.textContent = player ? player.name : "Taken";
+      seat.classList.add("taken");
+      if (pid === localPlayerId) seat.classList.add("self");
+
+      if (isHost) {
+        seat.style.cursor = "pointer";
+        seat.onclick = async () => {
+          await update(ref(db, `lobbies/${lobbyId}`), { [`seats/${seatNum}`]: 0 });
+          await update(
+            ref(db, `lobbies/${lobbyId}/players/${pid}`),
+            { seat: null, blockedUntil: Date.now() + 3000 }
+          );
+        };
       }
-    }else{
-      div.textContent=`Seat ${num}`; div.style.cursor="pointer";
-      div.onclick=async()=>trySit(num,players,seats);
+    } else {
+      seat.textContent = `Seat ${seatNum}`;
+      seat.style.cursor = "pointer";
+      seat.onclick = () => trySit(seatNum, players, seats);
     }
-    tableDiv.appendChild(div);
+
+    tableDiv.appendChild(seat);
   });
 }
-async function trySit(num,players,seats){
-  if(players[localPlayerId]?.blockedUntil > serverNow()) return;
-  const upd={};
-  for(const [n,id] of Object.entries(seats)) if(String(id)===localPlayerId) upd[`seats/${n}`]=0;
-  upd[`seats/${num}`]=localPlayerId;
-  await update(ref(db,`lobbies/${lobbyId}`),upd);
-  await update(ref(db,`lobbies/${lobbyId}/players/${localPlayerId}`),{ seat:+num });
+
+async function trySit(seatNum, players, seats) {
+  const me = players[localPlayerId];
+  if (me?.blockedUntil && Date.now() < me.blockedUntil) return;
+
+  const updates = {};
+  for (const [num, id] of Object.entries(seats)) {
+    if (String(id) === localPlayerId) updates[`seats/${num}`] = 0;
+  }
+  updates[`seats/${seatNum}`] = localPlayerId;
+
+  await update(ref(db, `lobbies/${lobbyId}`), updates);
+  await update(
+    ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`),
+    { seat: +seatNum }
+  );
 }
-function renderUnseated(players,seats){
-  unseatedDiv.innerHTML="";
-  const seatedIds=new Set(Object.values(seats).filter(id=>id&&id!=="0"));
-  for(const [id,p] of Object.entries(players)){
-    if(seatedIds.has(id)) continue;
-    const d=document.createElement("div"); d.className="player"; d.textContent=p.name;
-    if(isHost && id!==localPlayerId){ d.style.cursor="pointer";
-      d.onclick=async()=>{ await remove(ref(db,`lobbies/${lobbyId}/players/${id}`)); }; }
-    unseatedDiv.appendChild(d);
+
+/* ─── unseated pool ──────────────────────────────────────────────────── */
+function renderUnseated(players, seats) {
+  unseatedDiv.innerHTML = "";
+
+  const seatedIds =
+    new Set(Object.values(seats).filter(id => id && id !== "0"));
+
+  for (const [id, player] of Object.entries(players)) {
+    if (seatedIds.has(id)) continue;
+
+    const div = document.createElement("div");
+    div.className = "player";
+    div.textContent = player.name;
+
+    if (isHost && id !== localPlayerId) {
+      div.style.cursor = "pointer";
+      div.onclick = async () =>
+        await remove(ref(db, `lobbies/${lobbyId}/players/${id}`));
+    }
+
+    unseatedDiv.appendChild(div);
   }
 }
 
-/* ─── buttons / start logic ───────────────────────── */
-function renderButtons(d,seats){
-  /* start */
-  const allFilled = Object.values(seats).every(id=>id&&id!=="0");
-  const canStart = isHost && allFilled && !d.gameStarted;
-  startGameButton.style.display = canStart?"inline-block":"none";
-  startGameButton.disabled = !canStart;
-  if(canStart) startGameButton.onclick = ()=> update(ref(db,`lobbies/${lobbyId}`),{gameStarted:true});
+/* ─── buttons (unseat, leave, start) ─────────────────────────────────── */
+function renderButtons(data, seats) {
+  /* unseat yourself */
+  const unseatBtn = document.getElementById("unseatButton");
+  if (unseatBtn) {
+    const mySeat =
+      Object.entries(seats).find(([_, id]) => String(id) === localPlayerId);
+    unseatBtn.style.display = mySeat ? "inline-block" : "none";
+    unseatBtn.onclick = async () => {
+      if (!mySeat) return;
+      const [num] = mySeat;
+      await update(ref(db, `lobbies/${lobbyId}`), { [`seats/${num}`]: 0 });
+      await update(
+        ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`),
+        { seat: null, blockedUntil: Date.now() + 3000 }
+      );
+    };
+  }
+
+  /* leave lobby (non‑host) */
+  const leaveBtn = document.getElementById("leaveLobbyButton");
+  if (leaveBtn) {
+    if (!isHost) {
+      leaveBtn.style.display = "inline-block";
+      leaveBtn.onclick = async () => {
+        leftLobby = true;
+        await remove(
+          ref(db, `lobbies/${lobbyId}/players/${localPlayerId}`)
+        );
+        location.reload();
+      };
+    } else {
+      leaveBtn.style.display = "none";
+    }
+  }
+
+  /* start game */
+  const allFilled = Object.values(seats).every(id => id && id !== "0");
+  const canStart  = isHost && allFilled && !data.gameStarted;
+  startGameButton.style.display = canStart ? "inline-block" : "none";
+  startGameButton.disabled      = !canStart;
+  if (canStart) {
+    startGameButton.onclick = () =>
+      update(ref(db, `lobbies/${lobbyId}`), { gameStarted: true });
+  }
+}
+
+/* ─── share lobby dialog (QR + copy) ─────────────────────────────────── */
+function initShareButton() {
+  const shareBtn = document.getElementById("shareLobbyButton");
+  if (!shareBtn) return;
+
+  shareBtn.onclick = () => {
+    const url = `${location.origin}/DrinkingGames/lobby.html?code=${lobbyId}`;
+
+    const qrCont = document.getElementById("qrCodeContainer");
+    qrCont.innerHTML = "";
+    const qr = new QRious({ value: url, size: 200 });
+    qrCont.appendChild(
+      Object.assign(new Image(), { src: qr.toDataURL() })
+    );
+
+    document.getElementById("copyLinkButton").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("Lobby link copied!");
+      } catch {
+        alert("Copy failed.");
+      }
+    };
+
+    document.getElementById("qrModal").style.display = "block";
+  };
+}
+
+/* ─── auto‑join via ?code=XYZ ─────────────────────────────────────────── */
+const auto = getQueryParam("code");
+if (auto) {
+  window.addEventListener("DOMContentLoaded", () => {
+    lobbyCodeInput.value = auto;
+    joinLobby();
+    history.replaceState({}, "", "/DrinkingGames/lobby.html");
+  });
 }
