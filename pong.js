@@ -12,6 +12,14 @@ const bgMusic = new Howl({
   rate: 0.5
 });
 bgMusic.stop();  // at the top of your script
+let musicUnlocked = false;
+function unlockMusicContext() {
+  if (musicUnlocked) return;
+  const id = bgMusic.play();
+  bgMusic.stop(id);
+  musicUnlocked = true;
+}
+
 
 // ─── Constants ───────────────────────────────────────────────
 let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
@@ -20,6 +28,8 @@ const STEP_MS = 16.667;
 const PASS_COOLDOWN_MS = 300;
 
 const canvas = document.getElementById("gameCanvas");
+canvas.addEventListener("click", unlockMusicContext, { once: true });
+canvas.addEventListener("touchstart", unlockMusicContext, { once: true });
 const ctx = canvas.getContext("2d");
 const msg = document.getElementById("message");
 const returnBtn = document.getElementById("returnBtn");
@@ -144,7 +154,7 @@ onValue(gameRef, snap => {
     }, 200);
   }
 
-  if (isCurrentPlayer && startTime && ROUND_MS) {
+  if (isCurrentPlayer && startTime && ROUND_MS && musicUnlocked) {
     const elapsed = (serverNow() - startTime) / 1000;
     const offset = elapsed % bgMusic.duration();
 
@@ -156,6 +166,7 @@ onValue(gameRef, snap => {
   } else {
     if (bgMusic.playing()) bgMusic.stop();
   }
+
 
 
   if (g.gameOver && !gameOver) {
