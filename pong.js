@@ -12,7 +12,6 @@ const bgMusic = new Howl({
   rate: 0.5
 });
 bgMusic.stop();  // at the top of your script
-let musicId = null;
 
 // ─── Constants ───────────────────────────────────────────────
 let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
@@ -99,29 +98,6 @@ function setTemporaryMessage(t, fb) {
   messageTimeout = setTimeout(() => showMessage(fb), 2500);
 }
 
-function handleMusic() {
-  if (!isCurrentPlayer || !startTime || !ROUND_MS) {
-    if (musicId !== null) {
-      bgMusic.stop(musicId);
-      musicId = null;
-    }
-    return;
-  }
-
-  const elapsed = (serverNow() - startTime) / 1000;
-  const offset = elapsed % bgMusic.duration();
-  const rate = 0.5 + Math.min(1, elapsed / ROUND_MS) * 0.75;
-
-  if (musicId === null) {
-    musicId = bgMusic.play();
-    bgMusic.seek(offset, musicId);
-    bgMusic.rate(rate, musicId);
-  } else {
-    bgMusic.rate(rate, musicId);
-  }
-}
-
-
 function tryStartGame() {
   if (!seatingOrder.length) return;
   const now = serverNow();
@@ -138,8 +114,15 @@ function tryStartGame() {
     }
     return;
   });
-  setTimeout(handleMusic, 300);
-
+  setTimeout(() => {
+    if (isCurrentPlayer && startTime && ROUND_MS && !bgMusic.playing()) {
+      const elapsed = (serverNow() - startTime) / 1000;
+      const offset = elapsed % bgMusic.duration();
+      bgMusic.seek(offset);
+      bgMusic.rate(0.5);
+      bgMusic.play();
+    }
+  }, 300);  // short delay to allow Firebase to sync
 }
 
 // ─── Game Listener ───────────────────────────────────────────
@@ -161,7 +144,19 @@ onValue(gameRef, snap => {
     }, 200);
   }
 
-  handleMusic();
+  if (isCurrentPlayer && startTime && ROUND_MS) {
+    const elapsed = (serverNow() - startTime) / 1000;
+    const offset = elapsed % bgMusic.duration();
+
+    if (!bgMusic.playing()) {
+      bgMusic.seek(offset);
+      bgMusic.rate(0.5);
+      bgMusic.play();
+    }
+  } else {
+    if (bgMusic.playing()) bgMusic.stop();
+  }
+
 
   if (g.gameOver && !gameOver) {
     gameOver = true;
