@@ -4,40 +4,64 @@ import {
   onDisconnect, remove, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-// ─── Music Setup ────────────────────────────────────────────
+// ─── Audio Setup ──────────────────────────────────────────────
 const bgMusic = new Howl({
   src: ['Sounds/bg_music.mp3'],
   loop: true,
   volume: 0.3,
   rate: 0.5
 });
-bgMusic.stop();  // at the top of your script
+let musicId = null;
+let musicUnlocked = false;
+function unlockMusicContext() {
+  if (musicUnlocked) return;
+  const tempId = bgMusic.play();
+  bgMusic.stop(tempId);
+  musicUnlocked = true;
+}
+canvas.addEventListener("click", unlockMusicContext, { once: true });
+canvas.addEventListener("touchstart", unlockMusicContext, { once: true });
 
-// ─── Constants ───────────────────────────────────────────────
-let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
-const PUNISHMENT_MS = 5000;
-const STEP_MS = 16.667;
-const PASS_COOLDOWN_MS = 300;
+function handleMusic() {
+  if (!isCurrentPlayer || !startTime || !ROUND_MS) {
+    if (musicId !== null) {
+      bgMusic.stop(musicId);
+      musicId = null;
+    }
+    return;
+  }
+  const elapsed = (serverNow() - startTime) / 1000;
+  const offset = elapsed % bgMusic.duration();
+  const rate = 0.5 + Math.min(1, elapsed / ROUND_MS) * 0.75;
+  if (musicId === null) {
+    musicId = bgMusic.play();
+    bgMusic.seek(offset, musicId);
+    bgMusic.rate(rate, musicId);
+  } else {
+    bgMusic.rate(rate, musicId);
+  }
+}
 
+// ─── Setup ────────────────────────────────────────────────────
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const msg = document.getElementById("message");
 const returnBtn = document.getElementById("returnBtn");
-
 const lobbyId = new URLSearchParams(window.location.search).get("code");
 const playerId = localStorage.getItem("playerId");
 
-const gameRef = ref(db, `games/${lobbyId}`);
-const lobbyRef = ref(db, `lobbies/${lobbyId}`);
-const presenceRef = ref(db, `presence/${lobbyId}/${playerId}`);
-const presenceRoot = ref(db, `presence/${lobbyId}`);
-
+let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
 let serverOffset = 0;
 onValue(ref(db, ".info/serverTimeOffset"), snap => {
   serverOffset = snap.val() || 0;
 });
 const serverNow = () => Date.now() + serverOffset;
 
+// ─── Firebase ─────────────────────────────────────────────────
+const gameRef = ref(db, `games/${lobbyId}`);
+const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+const presenceRef = ref(db, `presence/${lobbyId}/${playerId}`);
+const presenceRoot = ref(db, `presence/${lobbyId}`);
 set(presenceRef, true);
 onDisconnect(presenceRef).remove();
 
@@ -49,7 +73,8 @@ onValue(presenceRoot, snap => {
       const verify = await get(presenceRoot);
       if (!verify.exists()) {
         await remove(gameRef);
-        await update(lobbyRef, { gameStarted: false });
+        await remove(lobbyRef);
+        await remove(presenceRoot);
       }
       cleanupTimer = null;
     }, 10000);
@@ -60,7 +85,7 @@ onValue(presenceRoot, snap => {
   }
 });
 
-// ─── Game State ──────────────────────────────────────────────
+// ─── Game State ───────────────────────────────────────────────
 let isHost, isCurrentPlayer, currentPlayerId;
 let players = {}, seats = {}, seatingOrder = [];
 
@@ -76,7 +101,6 @@ const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
 const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
 const gapSize = 50;
 
-// ─── Input ───────────────────────────────────────────────────
 let keyPressed = {};
 let lastInputX = null;
 document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
@@ -89,8 +113,7 @@ canvas.addEventListener("touchmove", e => {
   const r = canvas.getBoundingClientRect();
   lastInputX = e.touches[0].clientX - r.left;
 });
-
-// ─── UI ──────────────────────────────────────────────────────
+// ─── UI Helpers ───────────────────────────────────────────────
 const showMessage = t => { msg.textContent = t; };
 function setTemporaryMessage(t, fb) {
   clearTimeout(messageTimeout);
@@ -98,6 +121,7 @@ function setTemporaryMessage(t, fb) {
   messageTimeout = setTimeout(() => showMessage(fb), 2500);
 }
 
+// ─── Game Logic ───────────────────────────────────────────────
 function tryStartGame() {
   if (!seatingOrder.length) return;
   const now = serverNow();
@@ -114,25 +138,17 @@ function tryStartGame() {
     }
     return;
   });
-  setTimeout(() => {
-    if (isCurrentPlayer && startTime && ROUND_MS && !bgMusic.playing()) {
-      const elapsed = (serverNow() - startTime) / 1000;
-      const offset = elapsed % bgMusic.duration();
-      bgMusic.seek(offset);
-      bgMusic.rate(0.5);
-      bgMusic.play();
-    }
-  }, 300);  // short delay to allow Firebase to sync
+  setTimeout(handleMusic, 300);
 }
 
-// ─── Game Listener ───────────────────────────────────────────
 onValue(gameRef, snap => {
   const g = snap.val(); if (!g) return;
-
   currentPlayerId = g.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
   if (g.startTime) startTime = g.startTime;
   if (g.roundDuration) ROUND_MS = g.roundDuration;
+
+  handleMusic();
 
   if (isHost && g.startTime && !g.gameOver && !roundEndInterval) {
     roundEndInterval = setInterval(() => {
@@ -144,26 +160,9 @@ onValue(gameRef, snap => {
     }, 200);
   }
 
-  if (isCurrentPlayer && startTime && ROUND_MS) {
-    const elapsed = (serverNow() - startTime) / 1000;
-    const offset = elapsed % bgMusic.duration();
-
-    if (!bgMusic.playing()) {
-      bgMusic.seek(offset);
-      bgMusic.rate(0.5);
-      bgMusic.play();
-    }
-  } else {
-    if (bgMusic.playing()) bgMusic.stop();
-  }
-
-
   if (g.gameOver && !gameOver) {
     gameOver = true;
-    if (roundEndInterval) {
-      clearInterval(roundEndInterval);
-      roundEndInterval = null;
-    }
+    if (roundEndInterval) clearInterval(roundEndInterval);
     returnBtn.style.display = "block";
     const loser = players[currentPlayerId]?.name || "Someone";
     showMessage(isCurrentPlayer
@@ -184,7 +183,6 @@ onValue(gameRef, snap => {
   }
 });
 
-// ─── Lobby Listener ──────────────────────────────────────────
 onValue(lobbyRef, async snap => {
   const d = snap.val(); if (!d || !d.players || !d.seats) return;
   players = d.players;
@@ -208,38 +206,45 @@ onValue(lobbyRef, async snap => {
     }
   }
 });
-
-// ─── Paddle ──────────────────────────────────────────────────
+// ─── Paddle Update ─────────────────────────────────────────────
 function updatePaddle(dt) {
   if (gameOver) return;
   paddle.prevX = paddle.x;
-  const speed = 5 * dt / STEP_MS;
+  const speed = 5 * dt / 16.667;
   if (keyPressed["arrowleft"] || keyPressed["a"]) paddle.x -= speed;
   if (keyPressed["arrowright"] || keyPressed["d"]) paddle.x += speed;
   if (lastInputX !== null) paddle.x = lastInputX - paddle.width / 2;
   paddle.x = Math.max(0, Math.min(canvas.width - paddle.width, paddle.x));
 }
 
-// ─── Drawing ─────────────────────────────────────────────────
-function drawPaddle() { ctx.fillStyle = "#fff"; ctx.fillRect(paddle.x,paddle.y,paddle.width,paddle.height); }
-function drawBall()   { ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.radius,0,Math.PI*2); ctx.fillStyle="cyan"; ctx.fill(); }
-function drawGaps()   {
-  ctx.fillStyle="lime";
-  ctx.fillRect(0,0,gapSize,10);
-  ctx.fillRect(canvas.width-gapSize,0,gapSize,10);
-  ctx.fillStyle="#fff";
-  ctx.fillRect(gapSize,0,canvas.width-2*gapSize,10);
+// ─── Drawing ───────────────────────────────────────────────────
+function drawPaddle() {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+}
+function drawBall() {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fillStyle = "cyan";
+  ctx.fill();
+}
+function drawGaps() {
+  ctx.fillStyle = "lime";
+  ctx.fillRect(0, 0, gapSize, 10);
+  ctx.fillRect(canvas.width - gapSize, 0, gapSize, 10);
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(gapSize, 0, canvas.width - 2 * gapSize, 10);
 }
 
-// ─── Ball Logic ──────────────────────────────────────────────
+// ─── Ball Logic ────────────────────────────────────────────────
 function resetBall(state = null) {
   const isPass = !!state;
   if (!isPass) punishmentShown = true;
 
   const apply = () => {
     if (state && isCurrentPlayer) {
-      ball.x  = state.entrySide === "left" ? canvas.width - gapSize / 2 : gapSize / 2;
-      ball.y  = 20;
+      ball.x = state.entrySide === "left" ? canvas.width - gapSize / 2 : gapSize / 2;
+      ball.y = 20;
       ball.dx = state.dx || 0;
       ball.dy = 5;
     } else {
@@ -249,7 +254,7 @@ function resetBall(state = null) {
     punishmentShown = false;
   };
 
-  isPass ? apply() : setTimeout(apply, PUNISHMENT_MS);
+  isPass ? apply() : setTimeout(apply, 5000);
 }
 
 function getNextPlayer(dir) {
@@ -262,7 +267,7 @@ function getNextPlayer(dir) {
 
 function triggerNextTurn(dir, msg) {
   const now = serverNow();
-  if (now - lastPassTime < PASS_COOLDOWN_MS) return;
+  if (now - lastPassTime < 300) return;
   lastPassTime = now;
 
   const next = getNextPlayer(dir);
@@ -279,11 +284,9 @@ function triggerNextTurn(dir, msg) {
   });
 }
 
-// ─── Game Loop ───────────────────────────────────────────────
 function updateGame(dt) {
   if (gameOver || punishmentShown || !isCurrentPlayer) return;
-
-  const step = dt / STEP_MS;
+  const step = dt / 16.667;
   ball.x += ball.dx * step;
   ball.y += ball.dy * step;
 
@@ -297,7 +300,7 @@ function updateGame(dt) {
       ball.dy *= -1;
       ball.y = 10 + ball.radius;
     } else if (ball.x < gapSize) {
-      triggerNextTurn("left",  "⬅️ Passed to the left!");
+      triggerNextTurn("left", "⬅️ Passed to the left!");
     } else {
       triggerNextTurn("right", "➡️ Passed to the right!");
     }
@@ -321,10 +324,13 @@ function updateGame(dt) {
 }
 
 function draw() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  drawGaps(); drawPaddle(); if (isCurrentPlayer) drawBall();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawGaps();
+  drawPaddle();
+  if (isCurrentPlayer) drawBall();
 }
 
+// ─── Game Loop ─────────────────────────────────────────────────
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(32, now - last); last = now;
@@ -335,16 +341,13 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+// ─── UI ────────────────────────────────────────────────────────
 returnBtn.onclick = async () => {
   await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), { done: true });
   window.location.href = `lobby.html?code=${lobbyId}`;
 };
 
-// ─── Music Speed Sync ────────────────────────────────────────
+// ─── Music Resync Interval ─────────────────────────────────────
 setInterval(() => {
-  if (!isCurrentPlayer || !startTime || !ROUND_MS) return;
-  const t = serverNow() - startTime;
-  const progress = Math.min(1, t / ROUND_MS);
-  const rate = 0.5 + progress * 1;
-  bgMusic.rate(rate);
+  handleMusic();
 }, 500);
