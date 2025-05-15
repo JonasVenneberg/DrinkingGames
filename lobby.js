@@ -44,8 +44,34 @@ function initPresence() {
   onDisconnect(presenceRef).remove();
 }
 
+/* ─── helper: delete lobbies with zero players ───────────────────────── */
+async function cleanEmptyLobbies() {
+  const allLobbiesSnap = await get(ref(db, "lobbies"));
+  if (!allLobbiesSnap.exists()) return;
+
+  const deletions = [];
+  const all = allLobbiesSnap.val();
+
+  for (const [id, lobby] of Object.entries(all)) {
+    const players = lobby.players || {};
+    const hasAny  = Object.values(players).some(pid => pid && pid !== 0);
+
+    if (!hasAny) {
+      deletions.push(
+        remove(ref(db, `lobbies/${id}`)),
+        remove(ref(db, `games/${id}`)),
+        remove(ref(db, `presence/${id}`))
+      );
+    }
+  }
+  if (deletions.length) await Promise.all(deletions);
+}
+
 /* ─── lobby creation / join ──────────────────────────────────────────── */
 window.createLobby = async function () {
+
+  await cleanEmptyLobbies();
+
   lobbyId = generateCode();
   isHost  = true;
 

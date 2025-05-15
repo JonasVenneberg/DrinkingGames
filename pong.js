@@ -67,6 +67,9 @@ let punishmentShown = false;
 let messageTimeout;
 let lastPassTime   = 0;
 
+// 🔧 NEW: host timer interval to end round at correct time
+let roundEndInterval = null;
+
 /* ─── paddle & ball ───────────────────────────────────────────────────── */
 const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
 const ball   = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
@@ -120,8 +123,26 @@ onValue(gameRef, snap => {
   isCurrentPlayer = currentPlayerId === playerId;
   if (g.startTime) startTime = g.startTime;
 
+  // 🔧 NEW: start host timer that checks round expiry
+  if (isHost && g.startTime && !g.gameOver && !roundEndInterval) {
+    roundEndInterval = setInterval(() => {
+      if (serverNow() - g.startTime >= ROUND_MS) {
+        clearInterval(roundEndInterval);
+        roundEndInterval = null;
+        update(gameRef, { gameOver: true });
+      }
+    }, 200);
+  }
+
   if (g.gameOver && !gameOver) {
     gameOver = true;
+
+    // 🔧 clear host timer if set
+    if (roundEndInterval) {
+      clearInterval(roundEndInterval);
+      roundEndInterval = null;
+    }
+
     returnBtn.style.display = "block";
     const loser = players[currentPlayerId]?.name || "Someone";
     showMessage(isCurrentPlayer
@@ -135,6 +156,7 @@ onValue(gameRef, snap => {
       ? "🎯 Your turn!"
       : n ? `⏳ ${n} is playing...` : "⏳ A player is playing...");
   }
+
 
   /* apply incoming reset from the DB */
   if (g.ballResetTime && g.ballResetTime !== localResetTime) {
@@ -246,7 +268,6 @@ function triggerNextTurn(dir, msg) {
 /* ─── main physics loop ──────────────────────────────────────────────── */
 function updateGame(dt) {
   if (gameOver || punishmentShown || !isCurrentPlayer) return;
-  if (isHost && startTime && serverNow() - startTime >= ROUND_MS) { endGame(); return; }
 
   const step = dt / STEP_MS;
   ball.x += ball.dx * step;
@@ -289,15 +310,7 @@ function updateGame(dt) {
   }
 }
 
-function endGame() {
-  gameOver = true;
-  update(gameRef, { gameOver: true });
-  returnBtn.style.display = "block";
-  const loser = players[currentPlayerId]?.name || "Someone";
-  showMessage(isCurrentPlayer
-    ? "💀 Time's up! You lost the game!"
-    : `🎉 ${loser} lost the game!`);
-}
+
 
 /* ─── rendering loop ─────────────────────────────────────────────────── */
 function draw() {
