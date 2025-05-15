@@ -45,17 +45,18 @@ function initPresence() {
 }
 
 /* ─── helper: delete lobbies with zero active presence ──────────────── */
-async function cleanEmptyLobbies() {
+async function cleanEmptyLobbies(skipId = null) {
   const allLobbiesSnap = await get(ref(db, "lobbies"));
   const allPresenceSnap = await get(ref(db, "presence"));
   if (!allLobbiesSnap.exists()) return;
 
   const allLobbies = allLobbiesSnap.val();
   const allPresence = allPresenceSnap.exists() ? allPresenceSnap.val() : {};
-
   const deletions = [];
 
   for (const [lobbyId, lobby] of Object.entries(allLobbies)) {
+    if (lobbyId === skipId) continue;  // ⛔ never delete the one we're making
+
     const presence = allPresence[lobbyId];
     const hasAnyone = presence && Object.keys(presence).length > 0;
 
@@ -68,16 +69,16 @@ async function cleanEmptyLobbies() {
     }
   }
 
-  if (deletions.length) {
-    await Promise.all(deletions);
-    console.log(`Cleaned up ${deletions.length / 3} empty lobbies.`);
-  }
+  if (deletions.length) await Promise.all(deletions);
 }
+
 
 /* ─── lobby creation / join ──────────────────────────────────────────── */
 window.createLobby = async function () {
 
-  await cleanEmptyLobbies();
+  const newLobbyId = generateCode();
+  await cleanEmptyLobbies(newLobbyId);  // pass it as a skip-id
+
 
   lobbyId = generateCode();
   isHost  = true;
