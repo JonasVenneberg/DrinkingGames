@@ -4,41 +4,43 @@ import {
   onDisconnect, remove, runTransaction
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
-/* ─── constants ───────────────────────────────────────────────────────── */
-// ✅ NEW — replace with this:
-let ROUND_MS = 60_000 + Math.floor(Math.random() * 60_000); // 60k–120k ms
-const PUNISHMENT_MS    = 5_000;
-const STEP_MS          = 16.667;   // 60 fps frame
+// ─── Music Setup ────────────────────────────────────────────
+const bgMusic = new Howl({
+  src: ['Sounds/bg_music.mp3'],
+  loop: true,
+  volume: 0.3,
+  rate: 0.5
+});
+
+// ─── Constants ───────────────────────────────────────────────
+let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
+const PUNISHMENT_MS = 5000;
+const STEP_MS = 16.667;
 const PASS_COOLDOWN_MS = 300;
 
-/* ─── DOM elements ────────────────────────────────────────────────────── */
-const canvas    = document.getElementById("gameCanvas");
-const ctx       = canvas.getContext("2d");
-const msg       = document.getElementById("message");
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const msg = document.getElementById("message");
 const returnBtn = document.getElementById("returnBtn");
 
-/* ─── IDs & DB refs ───────────────────────────────────────────────────── */
-const lobbyId  = new URLSearchParams(window.location.search).get("code");
+const lobbyId = new URLSearchParams(window.location.search).get("code");
 const playerId = localStorage.getItem("playerId");
 
-const gameRef      = ref(db, `games/${lobbyId}`);
-const lobbyRef     = ref(db, `lobbies/${lobbyId}`);
-const presenceRef  = ref(db, `presence/${lobbyId}/${playerId}`);
+const gameRef = ref(db, `games/${lobbyId}`);
+const lobbyRef = ref(db, `lobbies/${lobbyId}`);
+const presenceRef = ref(db, `presence/${lobbyId}/${playerId}`);
 const presenceRoot = ref(db, `presence/${lobbyId}`);
 
-/* ─── server‑time helper ──────────────────────────────────────────────── */
 let serverOffset = 0;
-onValue(ref(db, ".info/serverTimeOffset"),
-        snap => { serverOffset = snap.val() || 0; });
+onValue(ref(db, ".info/serverTimeOffset"), snap => {
+  serverOffset = snap.val() || 0;
+});
 const serverNow = () => Date.now() + serverOffset;
 
-/* ─── presence (auto‑cleanup fallback) ────────────────────────────────── */
 set(presenceRef, true);
 onDisconnect(presenceRef).remove();
 
 let cleanupTimer = null;
-const CLEANUP_DELAY_MS = 10_000;
-
 onValue(presenceRoot, snap => {
   const active = snap.exists() ? Object.keys(snap.val()).length : 0;
   if (active === 0 && !cleanupTimer) {
@@ -49,7 +51,7 @@ onValue(presenceRoot, snap => {
         await update(lobbyRef, { gameStarted: false });
       }
       cleanupTimer = null;
-    }, CLEANUP_DELAY_MS);
+    }, 10000);
   }
   if (active > 0 && cleanupTimer) {
     clearTimeout(cleanupTimer);
@@ -57,30 +59,27 @@ onValue(presenceRoot, snap => {
   }
 });
 
-/* ─── local state ─────────────────────────────────────────────────────── */
+// ─── Game State ──────────────────────────────────────────────
 let isHost, isCurrentPlayer, currentPlayerId;
 let players = {}, seats = {}, seatingOrder = [];
 
-let startTime      = null;
-let gameOver       = false;
+let startTime = null;
+let gameOver = false;
 let localResetTime = 0;
 let punishmentShown = false;
 let messageTimeout;
-let lastPassTime   = 0;
-
-// 🔧 NEW: host timer interval to end round at correct time
+let lastPassTime = 0;
 let roundEndInterval = null;
 
-/* ─── paddle & ball ───────────────────────────────────────────────────── */
 const paddle = { x: 120, y: 470, width: 60, height: 10, prevX: 120 };
-const ball   = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
+const ball = { x: 150, y: 100, radius: 8, dx: 0, dy: 5 };
 const gapSize = 50;
 
-/* ─── input tracking ─────────────────────────────────────────────────── */
+// ─── Input ───────────────────────────────────────────────────
 let keyPressed = {};
 let lastInputX = null;
 document.addEventListener("keydown", e => keyPressed[e.key.toLowerCase()] = true);
-document.addEventListener("keyup",   e => keyPressed[e.key.toLowerCase()] = false);
+document.addEventListener("keyup", e => keyPressed[e.key.toLowerCase()] = false);
 canvas.addEventListener("mousemove", e => {
   const r = canvas.getBoundingClientRect();
   lastInputX = e.clientX - r.left;
@@ -90,7 +89,7 @@ canvas.addEventListener("touchmove", e => {
   lastInputX = e.touches[0].clientX - r.left;
 });
 
-/* ─── UI helper ───────────────────────────────────────────────────────── */
+// ─── UI ──────────────────────────────────────────────────────
 const showMessage = t => { msg.textContent = t; };
 function setTemporaryMessage(t, fb) {
   clearTimeout(messageTimeout);
@@ -98,7 +97,6 @@ function setTemporaryMessage(t, fb) {
   messageTimeout = setTimeout(() => showMessage(fb), 2500);
 }
 
-/* ─── attempt to start a round ────────────────────────────────────────── */
 function tryStartGame() {
   if (!seatingOrder.length) return;
   const now = serverNow();
@@ -108,23 +106,24 @@ function tryStartGame() {
       return {
         currentPlayer: seatingOrder[0],
         ballResetTime: now,
-        startTime:     now,
-        gameOver:      false
+        startTime: now,
+        roundDuration: ROUND_MS,
+        gameOver: false
       };
     }
     return;
   });
 }
 
-/* ─── Firebase listeners ─────────────────────────────────────────────── */
+// ─── Game Listener ───────────────────────────────────────────
 onValue(gameRef, snap => {
   const g = snap.val(); if (!g) return;
 
   currentPlayerId = g.currentPlayer;
   isCurrentPlayer = currentPlayerId === playerId;
   if (g.startTime) startTime = g.startTime;
+  if (g.roundDuration) ROUND_MS = g.roundDuration;
 
-  // 🔧 NEW: start host timer that checks round expiry
   if (isHost && g.startTime && !g.gameOver && !roundEndInterval) {
     roundEndInterval = setInterval(() => {
       if (serverNow() - g.startTime >= ROUND_MS) {
@@ -135,15 +134,22 @@ onValue(gameRef, snap => {
     }, 200);
   }
 
+  if (isCurrentPlayer && startTime && ROUND_MS) {
+    const elapsed = (serverNow() - startTime) / 1000;
+    const offset = elapsed % bgMusic.duration();
+    bgMusic.seek(offset);
+    bgMusic.rate(0.5);
+    bgMusic.play();
+  } else {
+    bgMusic.stop();
+  }
+
   if (g.gameOver && !gameOver) {
     gameOver = true;
-
-    // 🔧 clear host timer if set
     if (roundEndInterval) {
       clearInterval(roundEndInterval);
       roundEndInterval = null;
     }
-
     returnBtn.style.display = "block";
     const loser = players[currentPlayerId]?.name || "Someone";
     showMessage(isCurrentPlayer
@@ -158,20 +164,18 @@ onValue(gameRef, snap => {
       : n ? `⏳ ${n} is playing...` : "⏳ A player is playing...");
   }
 
-
-  /* apply incoming reset from the DB */
   if (g.ballResetTime && g.ballResetTime !== localResetTime) {
     localResetTime = g.ballResetTime;
     resetBall(g.ballState || null);
   }
 });
 
+// ─── Lobby Listener ──────────────────────────────────────────
 onValue(lobbyRef, async snap => {
   const d = snap.val(); if (!d || !d.players || !d.seats) return;
-
   players = d.players;
-  seats   = d.seats;
-  isHost  = d.hostId === playerId;
+  seats = d.seats;
+  isHost = d.hostId === playerId;
 
   seatingOrder = Object.entries(seats)
     .filter(([_, pid]) => pid && pid !== 0)
@@ -180,9 +184,8 @@ onValue(lobbyRef, async snap => {
 
   tryStartGame();
 
-  /* cleanup after EVERYONE clicked Return */
   const seatedIds = Object.values(seats).filter(id => id && id !== 0);
-  const allDone   = seatedIds.every(pid => players[pid]?.done);
+  const allDone = seatedIds.every(pid => players[pid]?.done);
   if (allDone && seatedIds.length) {
     await remove(gameRef);
     await update(lobbyRef, { gameStarted: false });
@@ -192,7 +195,7 @@ onValue(lobbyRef, async snap => {
   }
 });
 
-/* ─── paddle update ───────────────────────────────────────────────────── */
+// ─── Paddle ──────────────────────────────────────────────────
 function updatePaddle(dt) {
   if (gameOver) return;
   paddle.prevX = paddle.x;
@@ -203,7 +206,7 @@ function updatePaddle(dt) {
   paddle.x = Math.max(0, Math.min(canvas.width - paddle.width, paddle.x));
 }
 
-/* ─── drawing helpers ─────────────────────────────────────────────────── */
+// ─── Drawing ─────────────────────────────────────────────────
 function drawPaddle() { ctx.fillStyle = "#fff"; ctx.fillRect(paddle.x,paddle.y,paddle.width,paddle.height); }
 function drawBall()   { ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.radius,0,Math.PI*2); ctx.fillStyle="cyan"; ctx.fill(); }
 function drawGaps()   {
@@ -214,7 +217,7 @@ function drawGaps()   {
   ctx.fillRect(gapSize,0,canvas.width-2*gapSize,10);
 }
 
-/* ─── ball reset / pass logic ─────────────────────────────────────────── */
+// ─── Ball Logic ──────────────────────────────────────────────
 function resetBall(state = null) {
   const isPass = !!state;
   if (!isPass) punishmentShown = true;
@@ -245,28 +248,24 @@ function getNextPlayer(dir) {
 
 function triggerNextTurn(dir, msg) {
   const now = serverNow();
-  if (now - lastPassTime < PASS_COOLDOWN_MS) return;  // debounced
+  if (now - lastPassTime < PASS_COOLDOWN_MS) return;
   lastPassTime = now;
 
   const next = getNextPlayer(dir);
-  const fb   = players[next]?.name
+  const fb = players[next]?.name
     ? `⏳ ${players[next].name} is playing...`
     : "⏳ A player is playing...";
   setTemporaryMessage(msg, fb);
 
   localResetTime = now;
   update(gameRef, {
-    currentPlayer : next,
-    ballResetTime : localResetTime,
-    ballState     : { dx: ball.dx, entrySide: dir }
+    currentPlayer: next,
+    ballResetTime: localResetTime,
+    ballState: { dx: ball.dx, entrySide: dir }
   });
-
-  /*  ⚠️  No local resetBall() call here anymore.
-      That call was scheduling a "miss" reset after 5 s,
-      which caused the mid‑screen drop. */
 }
 
-/* ─── main physics loop ──────────────────────────────────────────────── */
+// ─── Game Loop ───────────────────────────────────────────────
 function updateGame(dt) {
   if (gameOver || punishmentShown || !isCurrentPlayer) return;
 
@@ -274,13 +273,11 @@ function updateGame(dt) {
   ball.x += ball.dx * step;
   ball.y += ball.dy * step;
 
-  /* walls */
   if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
     ball.dx *= -1;
     ball.x = Math.max(ball.radius, Math.min(canvas.width - ball.radius, ball.x));
   }
 
-  /* top bar / gaps */
   if (ball.y - ball.radius <= 10) {
     if (ball.x > gapSize && ball.x < canvas.width - gapSize) {
       ball.dy *= -1;
@@ -292,7 +289,6 @@ function updateGame(dt) {
     }
   }
 
-  /* paddle */
   const move = paddle.x - paddle.prevX;
   if (
     ball.y + ball.radius >= paddle.y &&
@@ -300,24 +296,21 @@ function updateGame(dt) {
     ball.dy > 0
   ) {
     ball.dy *= -1;
-    ball.y  = paddle.y - ball.radius;
+    ball.y = paddle.y - ball.radius;
     ball.dx = Math.max(-5, Math.min(5, ball.dx + move * 0.3));
   }
 
-  /* miss */
   if (ball.y - ball.radius > canvas.height) {
     setTemporaryMessage("💥 You missed! Try again soon!", "🎯 Your turn!");
     resetBall();
   }
 }
 
-
-
-/* ─── rendering loop ─────────────────────────────────────────────────── */
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawGaps(); drawPaddle(); if (isCurrentPlayer) drawBall();
 }
+
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(32, now - last); last = now;
@@ -328,8 +321,16 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
-/* ─── Return to Lobby ─────────────────────────────────────────────────── */
 returnBtn.onclick = async () => {
   await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), { done: true });
   window.location.href = `lobby.html?code=${lobbyId}`;
 };
+
+// ─── Music Speed Sync ────────────────────────────────────────
+setInterval(() => {
+  if (!isCurrentPlayer || !startTime || !ROUND_MS) return;
+  const t = serverNow() - startTime;
+  const progress = Math.min(1, t / ROUND_MS);
+  const rate = 0.5 + progress * 0.75;
+  bgMusic.rate(rate);
+}, 500);
