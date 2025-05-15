@@ -11,6 +11,7 @@ const bgMusic = new Howl({
   volume: 0.3,
   rate: 0.5
 });
+bgMusic.stop();  // at the top of your script
 
 // ─── Constants ───────────────────────────────────────────────
 let ROUND_MS = 60000 + Math.floor(Math.random() * 60000);
@@ -113,6 +114,15 @@ function tryStartGame() {
     }
     return;
   });
+  setTimeout(() => {
+    if (isCurrentPlayer && startTime && ROUND_MS && !bgMusic.playing()) {
+      const elapsed = (serverNow() - startTime) / 1000;
+      const offset = elapsed % bgMusic.duration();
+      bgMusic.seek(offset);
+      bgMusic.rate(0.5);
+      bgMusic.play();
+    }
+  }, 300);  // short delay to allow Firebase to sync
 }
 
 // ─── Game Listener ───────────────────────────────────────────
@@ -137,12 +147,16 @@ onValue(gameRef, snap => {
   if (isCurrentPlayer && startTime && ROUND_MS) {
     const elapsed = (serverNow() - startTime) / 1000;
     const offset = elapsed % bgMusic.duration();
-    bgMusic.seek(offset);
-    bgMusic.rate(0.5);
-    bgMusic.play();
+
+    if (!bgMusic.playing()) {
+      bgMusic.seek(offset);
+      bgMusic.rate(0.5);
+      bgMusic.play();
+    }
   } else {
-    bgMusic.stop();
+    if (bgMusic.playing()) bgMusic.stop();
   }
+
 
   if (g.gameOver && !gameOver) {
     gameOver = true;
@@ -331,6 +345,6 @@ setInterval(() => {
   if (!isCurrentPlayer || !startTime || !ROUND_MS) return;
   const t = serverNow() - startTime;
   const progress = Math.min(1, t / ROUND_MS);
-  const rate = 0.5 + progress * 0.75;
+  const rate = 0.5 + progress * 1;
   bgMusic.rate(rate);
 }, 500);
