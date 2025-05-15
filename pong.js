@@ -5,7 +5,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 /* ─── constants ───────────────────────────────────────────────────────── */
-const ROUND_MS         = 60_000;
+// ✅ NEW — replace with this:
+let ROUND_MS = 60_000 + Math.floor(Math.random() * 60_000); // 60k–120k ms
 const PUNISHMENT_MS    = 5_000;
 const STEP_MS          = 16.667;   // 60 fps frame
 const PASS_COOLDOWN_MS = 300;

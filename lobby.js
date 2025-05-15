@@ -34,7 +34,7 @@ const generateCode = () =>
 
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
-}
+}l
 
 /* ─── presence handling ──────────────────────────────────────────────── */
 function initPresence() {
@@ -44,27 +44,34 @@ function initPresence() {
   onDisconnect(presenceRef).remove();
 }
 
-/* ─── helper: delete lobbies with zero players ───────────────────────── */
+/* ─── helper: delete lobbies with zero active presence ──────────────── */
 async function cleanEmptyLobbies() {
   const allLobbiesSnap = await get(ref(db, "lobbies"));
+  const allPresenceSnap = await get(ref(db, "presence"));
   if (!allLobbiesSnap.exists()) return;
 
+  const allLobbies = allLobbiesSnap.val();
+  const allPresence = allPresenceSnap.exists() ? allPresenceSnap.val() : {};
+
   const deletions = [];
-  const all = allLobbiesSnap.val();
 
-  for (const [id, lobby] of Object.entries(all)) {
-    const players = lobby.players || {};
-    const hasAny  = Object.values(players).some(pid => pid && pid !== 0);
+  for (const [lobbyId, lobby] of Object.entries(allLobbies)) {
+    const presence = allPresence[lobbyId];
+    const hasAnyone = presence && Object.keys(presence).length > 0;
 
-    if (!hasAny) {
+    if (!hasAnyone) {
       deletions.push(
-        remove(ref(db, `lobbies/${id}`)),
-        remove(ref(db, `games/${id}`)),
-        remove(ref(db, `presence/${id}`))
+        remove(ref(db, `lobbies/${lobbyId}`)),
+        remove(ref(db, `games/${lobbyId}`)),
+        remove(ref(db, `presence/${lobbyId}`))
       );
     }
   }
-  if (deletions.length) await Promise.all(deletions);
+
+  if (deletions.length) {
+    await Promise.all(deletions);
+    console.log(`Cleaned up ${deletions.length / 3} empty lobbies.`);
+  }
 }
 
 /* ─── lobby creation / join ──────────────────────────────────────────── */
