@@ -32,7 +32,7 @@ function handleMusic() {
   }
   const elapsed = (serverNow() - startTime) / 1000;
   const offset = elapsed % bgMusic.duration();
-  const rate = 0.5 + Math.min(1, elapsed / ROUND_MS) * 0.75;
+  const rate = 0.5 + Math.min(1, elapsed / ROUND_MS) * 1;
   if (musicId === null) {
     musicId = bgMusic.play();
     bgMusic.seek(offset, musicId);
