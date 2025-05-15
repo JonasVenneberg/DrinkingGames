@@ -13,6 +13,8 @@ const bgMusic = new Howl({
 });
 bgMusic.stop();  // at the top of your script
 let musicUnlocked = false;
+let musicStarted = false;  // ✅ NEW LINE
+
 function unlockMusicContext() {
   if (musicUnlocked) return;
   const id = bgMusic.play();
@@ -170,6 +172,7 @@ onValue(gameRef, snap => {
 
 
   if (g.gameOver && !gameOver) {
+    musicStarted = false;  // ✅ reset for next game
     gameOver = true;
     if (roundEndInterval) {
       clearInterval(roundEndInterval);
@@ -350,6 +353,24 @@ returnBtn.onclick = async () => {
   await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), { done: true });
   window.location.href = `lobby.html?code=${lobbyId}`;
 };
+
+setInterval(() => {
+  if (
+    !musicStarted &&
+    isCurrentPlayer &&
+    startTime &&
+    ROUND_MS &&
+    musicUnlocked &&
+    !bgMusic.playing()
+  ) {
+    const elapsed = (serverNow() - startTime) / 1000;
+    const offset = elapsed % bgMusic.duration();
+    bgMusic.seek(offset);
+    bgMusic.rate(0.5);
+    bgMusic.play();
+    musicStarted = true;
+  }
+}, 250);
 
 // ─── Music Speed Sync ────────────────────────────────────────
 setInterval(() => {
