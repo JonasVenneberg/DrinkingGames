@@ -76,11 +76,10 @@ async function cleanEmptyLobbies(skipId = null) {
 /* ─── lobby creation / join ──────────────────────────────────────────── */
 window.createLobby = async function () {
 
-  const newLobbyId = generateCode();
-  await cleanEmptyLobbies(newLobbyId);  // pass it as a skip-id
 
 
   lobbyId = generateCode();
+  await cleanEmptyLobbies(lobbyId);
   isHost  = true;
 
   const players = {
