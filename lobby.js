@@ -75,12 +75,8 @@ async function cleanEmptyLobbies(skipId = null) {
 
 /* ─── lobby creation / join ──────────────────────────────────────────── */
 window.createLobby = async function () {
-
-
-
   lobbyId = generateCode();
-  await cleanEmptyLobbies(lobbyId);
-  isHost  = true;
+  isHost = true;
 
   const players = {
     [localPlayerId]: { name: "Host", joinedAt: Date.now(), seat: null }
@@ -89,6 +85,7 @@ window.createLobby = async function () {
   const seats = {};
   for (let i = 1; i <= 5; i++) seats[i] = 0;
 
+  // Step 1: Create the lobby
   await set(ref(db, `lobbies/${lobbyId}`), {
     hostId: localPlayerId,
     players,
@@ -96,10 +93,17 @@ window.createLobby = async function () {
     gameStarted: false
   });
 
+  // Step 2: Register presence (must happen before cleanup)
   initPresence();
+
+  // ✅ Step 3: NOW clean up old empty lobbies
+  await cleanEmptyLobbies(lobbyId); // Pass your own so it’s skipped
+
+  // Step 4: Enter UI
   enterLobbyUI();
   listenToLobby();
 };
+
 
 window.joinLobby = async function () {
   const code = lobbyCodeInput.value.trim().toUpperCase();
