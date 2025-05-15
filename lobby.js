@@ -97,7 +97,7 @@ window.createLobby = async function () {
   initPresence();
 
   // ✅ Step 3: NOW clean up old empty lobbies
-  await cleanEmptyLobbies(lobbyId); // Pass your own so it’s skipped
+  //await cleanEmptyLobbies(lobbyId); // Pass your own so it’s skipped
 
   // Step 4: Enter UI
   enterLobbyUI();
