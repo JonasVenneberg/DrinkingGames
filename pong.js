@@ -110,6 +110,8 @@ function setTemporaryMessage(t, fb) {
   messageTimeout = setTimeout(() => showMessage(fb), 2500);
 }
 
+
+
 function tryStartGame() {
   if (!seatingOrder.length) return;
   const now = serverNow();
@@ -136,6 +138,26 @@ function tryStartGame() {
     }
   }, 300);  // short delay to allow Firebase to sync
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && musicUnlocked) {
+    if (typeof Howler.ctx !== "undefined" && Howler.ctx.state === "suspended") {
+      Howler.ctx.resume();
+    }
+  }
+});
+
+// Disable all scrolling and multi-touch on the canvas
+canvas.addEventListener("touchstart", e => {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+}, { passive: false });
+
+document.body.style.overflow = "hidden"; // remove scrollbars
+
 
 // ─── Game Listener ───────────────────────────────────────────
 onValue(gameRef, snap => {
