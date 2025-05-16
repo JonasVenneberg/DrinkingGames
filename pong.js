@@ -139,13 +139,31 @@ function tryStartGame() {
   }, 300);  // short delay to allow Firebase to sync
 }
 
-document.addEventListener("visibilitychange", () => {
+document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState === "visible" && musicUnlocked) {
-    if (typeof Howler.ctx !== "undefined" && Howler.ctx.state === "suspended") {
-      Howler.ctx.resume();
+    try {
+      if (typeof Howler.ctx !== "undefined" && Howler.ctx.state === "suspended") {
+        await Howler.ctx.resume();
+
+        // If music was playing before, resume it manually
+        if (isCurrentPlayer && startTime && ROUND_MS && !bgMusic.playing()) {
+          const elapsed = (serverNow() - startTime) / 1000;
+          const offset = elapsed % bgMusic.duration();
+          bgMusic.seek(offset);
+          bgMusic.play();
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to resume Howler context:", err);
     }
   }
 });
+document.addEventListener("touchstart", () => {
+  if (musicUnlocked && Howler.ctx?.state === "suspended") {
+    Howler.ctx.resume();
+  }
+}, { passive: true });
+
 
 // Disable all scrolling and multi-touch on the canvas
 canvas.addEventListener("touchstart", e => {
