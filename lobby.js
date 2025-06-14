@@ -1,4 +1,5 @@
 // lobby.js
+console.log("✅ lobby.js loaded");
 
 import { initLobby, setLobbyUpdateCallback } from "./Pong_game/lobby_core.js";
 import { renderLobbyUI } from "./Pong_game/lobby_ui.js";
@@ -9,6 +10,7 @@ import { handleLobbyRouting } from "./Pong_game/lobby_router.js";
 document.addEventListener("DOMContentLoaded", () => {
   const createBtn = document.getElementById("createLobbyBtn");
   const joinBtn = document.getElementById("joinLobbyBtn");
+  console.log("🟢 Found createLobbyBtn:", createBtn);
 
   createBtn.onclick = () => {
     const newCode = crypto.randomUUID().slice(0, 6).toUpperCase();
