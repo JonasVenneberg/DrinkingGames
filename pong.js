@@ -119,7 +119,7 @@ function tryStartGame() {
     if (!cur || cur.gameOver) {
       startTime = now;
       return {
-        currentPlayer: seatingOrder[0],
+        currentPlayer: seatingOrder[Math.floor(Math.random() * seatingOrder.length)],
         ballResetTime: now,
         startTime: now,
         roundDuration: ROUND_MS,
@@ -388,6 +388,24 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
+// ─── Attempt to unlock music automatically on page load ───
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const id = bgMusic.play();
+    bgMusic.stop(id);
+    musicUnlocked = true;
+
+    if (Howler.ctx?.state === "suspended") {
+      await Howler.ctx.resume();
+    }
+
+    console.log("✅ Music context unlocked automatically");
+  } catch (e) {
+    console.warn("⚠️ Automatic music unlock failed — waiting for user gesture");
+  }
+});
+
 
 returnBtn.onclick = async () => {
   await update(ref(db, `lobbies/${lobbyId}/players/${playerId}`), { done: true });
