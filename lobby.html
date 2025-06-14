@@ -2,31 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lobby</title>
   <style>
     body {
       font-family: sans-serif;
       text-align: center;
-      background: #111;
-      color: white;
+      margin: 0;
       padding: 20px;
     }
 
-    input, button {
-      padding: 10px;
-      margin: 5px;
-      font-size: 1em;
-      border-radius: 6px;
-      border: none;
-    }
-
-    #table {
+    #seatContainer {
       position: relative;
       width: 300px;
       height: 300px;
       margin: 20px auto;
-      background: #222;
+      border: 2px dashed #ccc;
       border-radius: 50%;
     }
 
@@ -34,85 +25,53 @@
       position: absolute;
       width: 80px;
       height: 40px;
-      background: #333;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
+      line-height: 40px;
+      background: #eee;
+      border: 1px solid #aaa;
+      border-radius: 10px;
       transform: translate(-50%, -50%);
     }
 
-    .seat.taken {
-      background: #555;
-      cursor: not-allowed;
+    .seat.you {
+      background: lightgreen;
+      font-weight: bold;
     }
 
-    .seat.self {
-      background: #ffb700;
-      border: 2px solid white;
+    .seat.empty {
+      background: #f9f9f9;
+      cursor: pointer;
     }
 
-    .player-pool {
-      margin-top: 30px;
+    #unseatedContainer {
+      margin-top: 20px;
     }
 
-    .player {
-      background: #444;
-      padding: 6px 12px;
-      border-radius: 6px;
-      margin: 4px;
-      display: inline-block;
+    .unseated {
+      padding: 5px;
+      border: 1px dashed #ccc;
+      margin: 5px auto;
+      width: 150px;
+      background: #f0f0f0;
     }
 
-    #unseatButton {
-      display: none;
-      margin-top: 10px;
+    input, button {
+      margin: 10px;
     }
   </style>
 </head>
 <body>
+
   <h1>Multiplayer Lobby</h1>
+  <p>You are: <span id="playerName">...</span></p>
 
-  <div id="createJoin">
-    <button onclick="createLobby()">Create Lobby</button>
-    <br><br>
-    <input type="text" id="lobbyCodeInput" placeholder="Enter Lobby Code" />
-    <button onclick="joinLobby()">Join Lobby</button>
-  </div>
+  <input id="nameInput" type="text" placeholder="Your name" />
+  <br/>
+  <button id="shareBtn">Share Lobby</button>
+  <button id="leaveBtn">Leave Lobby</button>
 
-  <div id="lobbyView" style="display: none;">
-    <h2>Lobby Code: <span id="lobbyCodeDisplay"></span></h2>
+  <div id="seatContainer"></div>
+  <div id="unseatedContainer"></div>
 
-    <div id="hostControls" style="margin: 10px;"></div>
-    <button id="leaveLobbyButton" style="display: none; margin-top: 10px;">Leave Lobby</button>
-
-    <button id="shareLobbyButton" style="margin-top: 10px;">Share Lobby</button>
-
-    <div id="qrModal" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: white; border: 1px solid #aaa; padding: 20px; z-index: 1000; text-align: center;">
-      <div id="qrCodeContainer"></div>
-      <button id="copyLinkButton" style="margin-top: 10px;">Copy Link</button>
-      <br><br>
-      <button onclick="document.getElementById('qrModal').style.display='none'">Close</button>
-    </div>
-
-
-    <div id="table"></div>
-
-    <div class="player-pool">
-      <h3>Unseated Players:</h3>
-      <div id="unseatedPlayers"></div>
-    </div>
-
-
-    <button id="unseatButton">Leave Seat</button>
-    <button id="startGameButton" style="margin-top: 20px; display:none;">Start Game</button>
-  </div>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
   <script type="module" src="lobby.js"></script>
 </body>
 </html>
