@@ -24,9 +24,8 @@ export function setLobbyUpdateCallback(callback) {
   onLobbyUpdate = callback;
 }
 
-export async function initLobby() {
-  const urlParams = new URLSearchParams(window.location.search);
-  lobbyId = urlParams.get("code") || crypto.randomUUID().slice(0, 6);
+export async function initLobby(code, isCreating = false) {
+  lobbyId = code;
 
   playerId = localStorage.getItem("playerId");
   if (!playerId) {
@@ -34,11 +33,10 @@ export async function initLobby() {
     localStorage.setItem("playerId", playerId);
   }
 
-  if (urlParams.has("code")) {
-    await joinLobby(lobbyId, playerId);
-  } else {
+  if (isCreating) {
     await createLobby(lobbyId, playerId);
-    window.history.replaceState(null, "", `?code=${lobbyId}`);
+  } else {
+    await joinLobby(lobbyId, playerId);
   }
 
   listenToLobby(lobbyId, playerId, data => {
@@ -47,6 +45,7 @@ export async function initLobby() {
     }
   });
 }
+
 
 export async function updatePlayerName(name) {
   if (!lobbyId || !playerId) return;
