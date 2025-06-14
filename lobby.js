@@ -17,18 +17,17 @@ joinBtn.onclick = () => {
   const code = document.getElementById("lobbyCodeInput").value.trim().toUpperCase();
   if (code) {
     startLobbyFlow(code, false);
+  } else {
+    alert("Please enter a valid lobby code.");
   }
 };
 
 async function startLobbyFlow(code, isCreating) {
-  // Hide entry, show lobby
   document.getElementById("createJoin").style.display = "none";
   document.getElementById("lobbyView").style.display = "block";
 
-  // Replace URL
-  window.history.replaceState({}, "", `?code=${code}`);
+  history.replaceState({}, "", `?code=${code}`);
 
-  // Setup live sync
   registerLobbyEventHandlers();
 
   setLobbyUpdateCallback((lobbyData) => {
