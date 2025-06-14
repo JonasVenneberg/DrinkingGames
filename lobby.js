@@ -1,10 +1,18 @@
 // lobby.js
-console.log("✅ lobby.js loaded");
+
 
 import { initLobby, setLobbyUpdateCallback } from "./Pong_game/lobby_core.js";
 import { renderLobbyUI } from "./Pong_game/lobby_ui.js";
 import { registerLobbyEventHandlers } from "./Pong_game/lobby_events.js";
 import { handleLobbyRouting } from "./Pong_game/lobby_router.js";
+
+console.log("🟢 Found createLobbyBtn:", createBtn);
+if (createBtn) {
+  createBtn.onclick = () => console.log("✅ Create button was clicked");
+} else {
+  console.error("❌ createLobbyBtn is NULL");
+}
+
 
 // Wait for DOM to load before accessing elements
 document.addEventListener("DOMContentLoaded", () => {
