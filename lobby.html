@@ -60,30 +60,18 @@
   </style>
 </head>
 <body>
+
   <h1>Multiplayer Lobby</h1>
+  <p>You are: <span id="playerName">...</span></p>
 
-  <!-- CREATE OR JOIN SCREEN -->
-  <div id="createJoin">
-    <button id="createLobbyBtn">Create Lobby</button>
-    <br><br>
-    <input type="text" id="lobbyCodeInput" placeholder="Enter Lobby Code" />
-    <button id="joinLobbyBtn">Join Lobby</button>
-  </div>
+  <input id="nameInput" type="text" placeholder="Your name" />
+  <br/>
+  <button id="shareBtn">Share Lobby</button>
+  <button id="leaveBtn">Leave Lobby</button>
 
-  <!-- FULL LOBBY UI (initially hidden) -->
-  <div id="lobbyView" style="display: none;">
-    <p>You are: <span id="playerName">...</span></p>
-
-    <input id="nameInput" type="text" placeholder="Your name" />
-    <br/>
-    <button id="shareBtn">Share Lobby</button>
-    <button id="leaveBtn">Leave Lobby</button>
-
-    <div id="seatContainer"></div>
-    <div id="unseatedContainer"></div>
-  </div>
+  <div id="seatContainer"></div>
+  <div id="unseatedContainer"></div>
 
   <script type="module" src="lobby.js"></script>
 </body>
-
 </html>
