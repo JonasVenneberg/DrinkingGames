@@ -77,11 +77,12 @@
   <h1>Multiplayer Lobby</h1>
 
   <div id="createJoin">
-    <button onclick="createLobby()">Create Lobby</button>
+    <button id="createLobbyBtn">Create Lobby</button>
     <br><br>
     <input type="text" id="lobbyCodeInput" placeholder="Enter Lobby Code" />
-    <button onclick="joinLobby()">Join Lobby</button>
+    <button id="joinLobbyBtn">Join Lobby</button>
   </div>
+
 
   <div id="lobbyView" style="display: none;">
     <h2>Lobby Code: <span id="lobbyCodeDisplay"></span></h2>

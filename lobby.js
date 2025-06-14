@@ -425,3 +425,10 @@ if (auto) {
     history.replaceState({}, "", "/DrinkingGames/lobby.html");
   });
 }
+document.addEventListener("DOMContentLoaded", () => {
+  const createBtn = document.getElementById("createLobbyBtn");
+  const joinBtn = document.getElementById("joinLobbyBtn");
+
+  if (createBtn) createBtn.addEventListener("click", () => createLobby());
+  if (joinBtn) joinBtn.addEventListener("click", () => joinLobby());
+});
